@@ -17,6 +17,9 @@ import { format, isFuture, isSameDay, parseISO } from "date-fns";
 import { useAppStore } from "@/lib/store";
 import { MealEntry, SleepEntry, WellbeingCheckinRecord } from "@/lib/store";
 import { useAuthStore } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
+import { WaterIntake } from "@/components/ui/water-intake";
+import { ActivitySummary } from "@/components/activity-summary";
 
 export default function LogActivityPage() {
   const { 
@@ -30,6 +33,7 @@ export default function LogActivityPage() {
   } = useAppStore();
 
   const { currentUser: user, isAuthenticated } = useAuthStore();
+  const { toast } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // 페이지 진입 시 Firebase에서 데이터 동기화
@@ -169,8 +173,31 @@ export default function LogActivityPage() {
     
   }, [selectedDate, getMealsOnDate, getSleepEntryForNightOf, getCheckinForDate]);
 
+  // 데이터 자동 새로고침 함수
+  const refreshData = async () => {
+    if (isAuthenticated && user) {
+      setIsRefreshing(true);
+      console.log('[LogActivity] 데이터 자동 새로고침 중...');
+      await syncData(user.id);
+      
+      // 선택된 날짜의 데이터 다시 불러오기
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const dateMeals = getMealsOnDate(dateStr);
+      const dateSleep = getSleepEntryForNightOf(dateStr);
+      const dateCheckin = getCheckinForDate(dateStr);
+      
+      setDateRecord({
+        meals: dateMeals,
+        sleep: dateSleep,
+        checkin: dateCheckin
+      });
+      
+      setIsRefreshing(false);
+    }
+  };
+
   // Save sleep data
-  const handleSaveSleep = () => {
+  const handleSaveSleep = async () => {
     // Check authentication
     if (!useAuthStore.getState().isAuthenticated) {
       // Redirect to login page
@@ -207,10 +234,19 @@ export default function LogActivityPage() {
     
     addSleepEntry(sleepEntry);
     setSleepEditMode(false);
+    
+    // 저장 완료 알림 및 데이터 갱신
+    toast({
+      title: "수면 기록 저장 완료",
+      description: "수면 기록이 성공적으로 저장되었습니다.",
+    });
+    
+    // 데이터 새로고침
+    await refreshData();
   };
 
   // Save checkin data
-  const handleSaveCheckin = () => {
+  const handleSaveCheckin = async () => {
     // Check authentication
     if (!useAuthStore.getState().isAuthenticated) {
       // Redirect to login page
@@ -230,10 +266,19 @@ export default function LogActivityPage() {
     
     addCheckin(checkinInput, selectedDate);
     setCheckinEditMode(false);
+    
+    // 저장 완료 알림 및 데이터 갱신
+    toast({
+      title: "체크인 기록 저장 완료",
+      description: "웰빙 체크인 기록이 성공적으로 저장되었습니다.",
+    });
+    
+    // 데이터 새로고침
+    await refreshData();
   };
 
   // Save meal data
-  const handleSaveMeal = () => {
+  const handleSaveMeal = async () => {
     // Check authentication
     if (!useAuthStore.getState().isAuthenticated) {
       // Redirect to login page
@@ -277,6 +322,15 @@ export default function LogActivityPage() {
     setSelectedMealType(null);
     setMealStatus(null);
     resetMealForm();
+    
+    // 저장 완료 알림 및 데이터 갱신
+    toast({
+      title: "식사 기록 저장 완료",
+      description: "식사 기록이 성공적으로 저장되었습니다.",
+    });
+    
+    // 데이터 새로고침
+    await refreshData();
   };
   
   const emotionOptions = [
@@ -397,40 +451,6 @@ export default function LogActivityPage() {
   const isFutureDate = (date: Date) => {
     return isFuture(date);
   };
-  
-  // 새로고침 버튼 핸들러 추가
-  const handleRefreshData = async () => {
-    if (!isAuthenticated || !user) return;
-    
-    try {
-      setIsRefreshing(true);
-      console.log(`[LogActivity] 수동 데이터 새로고침 시작 - 사용자 ID: ${user.id}`);
-      
-      const success = await syncData(user.id);
-      
-      if (success) {
-        console.log('[LogActivity] 데이터 새로고침 성공');
-        // 선택된 날짜 데이터 다시 불러오기
-        const dateStr = format(selectedDate, 'yyyy-MM-dd');
-        const dateMeals = getMealsOnDate(dateStr);
-        const dateSleep = getSleepEntryForNightOf(dateStr);
-        const dateCheckin = getCheckinForDate(dateStr);
-        
-        setDateRecord({
-          meals: dateMeals,
-          sleep: dateSleep,
-          checkin: dateCheckin
-        });
-      }
-      
-      setTimeout(() => {
-        setIsRefreshing(false);
-      }, 600);
-    } catch (error) {
-      console.error('[LogActivity] 데이터 새로고침 중 오류:', error);
-      setIsRefreshing(false);
-    }
-  };
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -459,7 +479,7 @@ export default function LogActivityPage() {
         <Button 
           variant="outline" 
           size="sm" 
-          onClick={handleRefreshData} 
+          onClick={refreshData} 
           disabled={isRefreshing || !isAuthenticated}
           className="flex items-center"
         >
@@ -835,26 +855,10 @@ export default function LogActivityPage() {
                     
                     {didDrinkWater && (
                       <div className="space-y-3">
-                        <div className="space-y-1">
-                          <div className="flex justify-between">
-                            <Label>물 섭취량: {waterIntake.toFixed(1)}L</Label>
-                          </div>
-                          <Slider
-                            value={[waterIntake]}
-                            min={0}
-                            max={5}
-                            step={0.1}
-                            onValueChange={(value) => setWaterIntake(value[0])}
-                          />
-                        </div>
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>0L</span>
-                          <span>1L</span>
-                          <span>2L</span>
-                          <span>3L</span>
-                          <span>4L</span>
-                          <span>5L</span>
-                        </div>
+                        <WaterIntake 
+                          value={Math.ceil(waterIntake)}
+                          onChange={(value) => setWaterIntake(value)}
+                        />
                       </div>
                     )}
                   </div>
@@ -1333,6 +1337,16 @@ export default function LogActivityPage() {
           )}
         </TabsContent>
       </Tabs>
+      
+      {/* 기록 요약 */}
+      <div className="mt-8">
+        <ActivitySummary 
+          date={selectedDate}
+          meals={dateRecord.meals}
+          sleep={dateRecord.sleep}
+          checkin={dateRecord.checkin}
+        />
+      </div>
     </div>
   );
 } 

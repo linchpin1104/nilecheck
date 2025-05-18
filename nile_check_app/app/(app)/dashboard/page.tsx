@@ -45,6 +45,8 @@ export default function DashboardPage() {
   const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
   const [suggestionsGenerated, setSuggestionsGenerated] = useState(false);
 
+  const [showWelcomePopup, setShowWelcomePopup] = useState(false);
+
   // Process data for charts
   useEffect(() => {
     if (isInitialized && (meals.length > 0 || sleep.length > 0 || checkins.length > 0)) {
@@ -171,16 +173,20 @@ export default function DashboardPage() {
   }, [isInitialized, sleep, checkins, meals.length]);
 
   useEffect(() => {
-    // 첫 로드 시 샘플 데이터가 없으면 생성
+    // 첫 로드 시 데이터가 없으면 웰컴 팝업 표시
     if (isInitialized && meals.length === 0 && sleep.length === 0 && checkins.length === 0) {
-      generateSampleData();
+      // 더 이상 샘플 데이터를 자동 생성하지 않음
+      // generateSampleData();
+      
+      // 대신 새 사용자에게 웰컴 팝업 표시
+      setShowWelcomePopup(true);
     }
     
     // 오늘의 요약 데이터 업데이트
     if (isInitialized) {
       setSummary(getTodaySummary());
     }
-  }, [isInitialized, meals.length, sleep.length, checkins.length, generateSampleData, getTodaySummary]);
+  }, [isInitialized, meals.length, sleep.length, checkins.length, getTodaySummary]);
   
   const getEmotionEmoji = (emotion: string): string => {
     const emojiMap: Record<string, string> = {
@@ -289,8 +295,48 @@ export default function DashboardPage() {
 
   const hasAnyData = meals.length > 0 || sleep.length > 0 || checkins.length > 0;
 
+  // 샘플 데이터 생성 함수 - 사용자가 직접 샘플 데이터 생성 버튼을 눌렀을 때만 호출
+  const handleGenerateSampleData = () => {
+    generateSampleData();
+    setShowWelcomePopup(false);
+  };
+
+  // 첫 기록 생성 페이지로 이동
+  const handleCreateFirstEntry = () => {
+    setShowWelcomePopup(false);
+    // '/log-activity' 페이지로 리다이렉트는 컴포넌트 내에서 처리됨
+  };
+
   return (
     <div className="container mx-auto pt-6 pb-12 px-4">
+      {/* 신규 사용자 환영 메시지 */}
+      {showWelcomePopup && (
+        <div className="mb-8 bg-primary/10 border border-primary/20 rounded-lg p-6 shadow-md animate-fadeIn">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-primary mb-2">환영합니다! 👋</h2>
+              <p className="text-muted-foreground mb-4">
+                Nile Check에 가입해주셔서 감사합니다. 첫 번째 활동을 기록하고 웰빙 데이터를 관리해보세요.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+              <Link href="/log-activity" className="flex-1 md:flex-auto">
+                <Button onClick={handleCreateFirstEntry} className="w-full">
+                  <ListPlus className="mr-2 h-4 w-4" /> 첫 기록 생성하기
+                </Button>
+              </Link>
+              <Button 
+                variant="outline" 
+                className="flex-1 md:flex-auto" 
+                onClick={handleGenerateSampleData}
+              >
+                <Info className="mr-2 h-4 w-4" /> 샘플 데이터 보기
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
         <h1 className="text-3xl font-bold text-primary mb-4 md:mb-0">대시보드</h1>
         <div className="flex gap-2">

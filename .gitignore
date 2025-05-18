@@ -31,4 +31,9 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts 
+next-env.d.ts
+
+# new variables
+OPENAI_API_KEY=your_openai_api_key
+UPSTASH_REDIS_URL=your_upstash_url
+UPSTASH_REDIS_TOKEN=your_upstash_token 

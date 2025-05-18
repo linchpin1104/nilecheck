@@ -19,6 +19,7 @@ interface LoginCredentials {
 interface RegisterData extends LoginCredentials {
   name: string;
   email?: string;
+  countryCode: string;
 }
 
 export default function useAuth() {

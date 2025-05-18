@@ -1,151 +1,120 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getVerificationRequest, updateVerificationRequest } from '@/lib/firebase/db-service';
-import { mockVerificationStore } from '@/lib/verification/store';
+import { cookies } from 'next/headers';
+import { AES, enc } from 'crypto-js';
+import { formatPhoneNumber } from '@/lib/verification/phone-service';
 
 export async function POST(req: NextRequest) {
   try {
-    console.log('[API] /api/auth/verify/check - Request received');
-    
-    const body = await req.json();
-    console.log('[API] Request body:', body);
-    
-    const { requestId, phoneNumber, code } = body;
+    const { requestId, phoneNumber, countryCode = "KR", code } = await req.json();
     
     if (!requestId || !phoneNumber || !code) {
-      console.log('[API] Missing required fields in request');
-      return NextResponse.json(
-        { success: false, message: '요청 ID, 전화번호, 인증번호가 모두 필요합니다.' },
-        { status: 400 }
-      );
+      return NextResponse.json({
+        success: false,
+        message: "Missing required parameters"
+      }, { status: 400 });
     }
     
-    console.log(`[API] Checking verification. RequestID: ${requestId}, Phone: ${phoneNumber}`);
+    // Get the verification record from cookies
+    const cookieStore = await cookies();
+    const verificationCookie = cookieStore.get(`verify_${requestId}`);
     
-    // Firestore에서 인증 요청 조회 시도, 실패하면 메모리 저장소 사용
-    let verification = null;
+    if (!verificationCookie) {
+      return NextResponse.json({
+        success: false,
+        message: "Verification request expired or not found"
+      }, { status: 404 });
+    }
     
+    // Decrypt the verification data
     try {
-      verification = await getVerificationRequest(requestId, phoneNumber);
-    } catch (firestoreError) {
-      console.warn('[API] Error getting verification from Firestore:', firestoreError);
-    }
-    
-    // Firestore에서 찾지 못했거나 오류 발생 시 메모리 저장소 확인
-    if (!verification) {
-      console.log(`[API] Checking mock verification store for phone: ${phoneNumber}`);
-      const mockVerification = mockVerificationStore[phoneNumber];
-      
-      if (mockVerification) {
-        verification = {
-          ...mockVerification,
-          // Firestore Timestamp를 흉내내기
-          createdAt: {
-            toDate: () => new Date(mockVerification.createdAt)
-          },
-          _id: 'mock_id' // 업데이트를 위한 임시 ID 추가
-        };
-        console.log(`[API] Found verification in mock store:`, verification);
-      } else {
-        console.log(`[API] No verification found for phone: ${phoneNumber}`);
-        return NextResponse.json(
-          { success: false, message: '유효하지 않은 인증 요청입니다. 인증번호를 다시 요청해주세요.' },
-          { status: 404 }
-        );
-      }
-    }
-    
-    console.log(`[API] Verification found:`, verification);
-    
-    // Timestamp 객체를 JavaScript Date로 변환
-    const createdAt = verification.createdAt instanceof Date ? 
-                       verification.createdAt : 
-                       verification.createdAt.toDate();
-    
-    // 만료 확인 (5분 이상 지난 경우)
-    if (createdAt.getTime() < Date.now() - 5 * 60 * 1000) {
-      console.log(`[API] Verification expired. Created at: ${createdAt.toISOString()}`);
-      return NextResponse.json(
-        { success: false, message: '인증번호가 만료되었습니다. 인증번호를 다시 요청해주세요.' },
-        { status: 410 } // Gone
+      const decryptedBytes = AES.decrypt(
+        verificationCookie.value,
+        process.env.VERIFICATION_SECRET || 'verification-secret-key'
       );
-    }
-    
-    // 이미 인증된 요청인지 확인
-    if (verification.verified) {
-      console.log(`[API] Verification already verified`);
-      return NextResponse.json({
-        success: true,
-        message: '이미 인증된 요청입니다.'
-      });
-    }
-    
-    // 시도 횟수 초과 확인 (5회 이상)
-    if (verification.attempts >= 5) {
-      console.log(`[API] Too many verification attempts: ${verification.attempts}`);
-      return NextResponse.json(
-        { success: false, message: '인증 시도 횟수를 초과했습니다. 인증번호를 다시 요청해주세요.' },
-        { status: 429 } // Too Many Requests
+      
+      const verificationRecord = JSON.parse(
+        decryptedBytes.toString(enc.Utf8)
       );
-    }
-    
-    // 시도 횟수 증가
-    verification.attempts += 1;
-    console.log(`[API] Increasing attempts to ${verification.attempts}`);
-    
-    // 인증번호 확인 - 테스트를 위해 "0000", "000000", "123456" 모두 허용
-    if (code === verification.code || code === "0000" || code === "123456") {
-      // 인증 상태 업데이트
-      verification.verified = true;
       
-      // Firestore 업데이트 시도
-      try {
-        console.log(`[API] Verification successful - updating status in Firestore`);
-        if (verification._id) {
-          await updateVerificationRequest(verification as any);
-        }
-      } catch (updateError) {
-        console.warn('[API] Error updating verification in Firestore:', updateError);
+      // Format the incoming phone number in the same way as the stored one
+      const formattedInput = formatPhoneNumber(phoneNumber, countryCode);
+      
+      // Check if phone number matches
+      if (verificationRecord.phoneNumber !== formattedInput) {
+        return NextResponse.json({
+          success: false,
+          message: "Phone number doesn't match verification request"
+        }, { status: 400 });
       }
       
-      // 메모리 저장소 업데이트
-      if (mockVerificationStore[phoneNumber]) {
-        mockVerificationStore[phoneNumber].verified = true;
-        mockVerificationStore[phoneNumber].attempts = verification.attempts;
-        console.log(`[API] Updated mock verification store:`, mockVerificationStore[phoneNumber]);
+      // Check if the verification has expired
+      const expirationTime = 10 * 60 * 1000; // 10 minutes in milliseconds
+      if (Date.now() - verificationRecord.timestamp > expirationTime) {
+        // Clean up the expired cookie
+        cookieStore.delete(`verify_${requestId}`);
+        
+        return NextResponse.json({
+          success: false,
+          message: "Verification code expired"
+        }, { status: 400 });
       }
+      
+      // Update attempts counter
+      verificationRecord.attempts += 1;
+      
+      // Check if max attempts reached
+      if (verificationRecord.attempts > 5) {
+        // Clean up the cookie
+        cookieStore.delete(`verify_${requestId}`);
+        
+        return NextResponse.json({
+          success: false,
+          message: "Too many failed attempts. Please request a new code."
+        }, { status: 400 });
+      }
+      
+      // Check if the code matches
+      if (verificationRecord.code !== code) {
+        // Update and store the record with incremented attempts
+        const encryptedData = AES.encrypt(
+          JSON.stringify(verificationRecord),
+          process.env.VERIFICATION_SECRET || 'verification-secret-key'
+        ).toString();
+        
+        cookieStore.set(`verify_${requestId}`, encryptedData, { 
+          maxAge: 10 * 60, // 10 minutes
+          httpOnly: true,
+          path: '/'
+        });
+        
+        return NextResponse.json({
+          success: false,
+          message: "Invalid verification code",
+          attemptsLeft: 5 - verificationRecord.attempts
+        }, { status: 400 });
+      }
+      
+      // Verification successful - clean up the cookie
+      cookieStore.delete(`verify_${requestId}`);
       
       return NextResponse.json({
         success: true,
-        message: '인증에 성공했습니다.'
+        message: "Phone number verified successfully"
       });
-    } else {
-      // 실패 상태 업데이트
-      console.log(`[API] Verification code mismatch. Expected: ${verification.code}, Received: ${code}`);
       
-      // Firestore 업데이트 시도
-      try {
-        if (verification._id) {
-          await updateVerificationRequest(verification as any);
-        }
-      } catch (updateError) {
-        console.warn('[API] Error updating verification attempts in Firestore:', updateError);
-      }
-      
-      // 메모리 저장소 업데이트
-      if (mockVerificationStore[phoneNumber]) {
-        mockVerificationStore[phoneNumber].attempts = verification.attempts;
-      }
-      
-      return NextResponse.json(
-        { success: false, message: '인증번호가 일치하지 않습니다.' },
-        { status: 400 }
-      );
+    } catch (error) {
+      console.error('Error decrypting verification data:', error);
+      return NextResponse.json({
+        success: false,
+        message: "Invalid verification data"
+      }, { status: 500 });
     }
+    
   } catch (error) {
-    console.error('[API] Verification check error:', error);
-    return NextResponse.json(
-      { success: false, message: '인증번호 확인 중 오류가 발생했습니다.' },
-      { status: 500 }
-    );
+    console.error('Error checking verification code:', error);
+    return NextResponse.json({
+      success: false,
+      message: error instanceof Error ? error.message : "Unknown error occurred"
+    }, { status: 500 });
   }
 } 
