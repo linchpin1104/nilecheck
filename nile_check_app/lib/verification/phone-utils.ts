@@ -1,6 +1,16 @@
 // Server-side phone utilities
 import { countries } from './countries';
 
+// Function to generate a random verification code
+export function generateVerificationCode(length: number = 6): string {
+  const digits = '0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += digits.charAt(Math.floor(Math.random() * digits.length));
+  }
+  return result;
+}
+
 // Format phone number to E.164 standard
 export function formatPhoneNumber(phoneNumber: string, countryCode: string): string {
   // Remove any non-digit characters

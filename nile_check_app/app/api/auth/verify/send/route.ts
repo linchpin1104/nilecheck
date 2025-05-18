@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateVerificationCode } from '@/lib/verification/phone-service';
 import { validatePhoneNumber, sendVerificationSMS as sendSMS } from '@/lib/verification/server';
-import { formatPhoneNumber } from '@/lib/verification/phone-utils';
+import { formatPhoneNumber, generateVerificationCode } from '@/lib/verification/phone-utils';
 import { cookies } from 'next/headers';
 import { AES } from 'crypto-js';
 
