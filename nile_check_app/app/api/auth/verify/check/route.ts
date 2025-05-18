@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { AES, enc } from 'crypto-js';
 import { formatPhoneNumber } from '@/lib/verification/phone-utils';
+import { createVerificationRequest, updateVerificationRequest } from '@/lib/firebase/db-service';
+import { mockVerificationStore } from '@/lib/verification/store';
 
 export async function POST(req: NextRequest) {
   try {
@@ -96,6 +98,40 @@ export async function POST(req: NextRequest) {
       
       // Verification successful - clean up the cookie
       cookieStore.delete(`verify_${requestId}`);
+      
+      // 인증 정보를 Firestore에 영구 저장
+      console.log(`[API] 인증 성공: ${formattedInput}. Firestore에 저장 중...`);
+      try {
+        // 1. 먼저 Firestore에 인증 기록 저장
+        const firestoreRequestId = await createVerificationRequest(formattedInput, code);
+        const verification = {
+          _id: firestoreRequestId,
+          phoneNumber: formattedInput,
+          code: code,
+          requestId: firestoreRequestId,
+          createdAt: new Date(),
+          verified: true,
+          attempts: verificationRecord.attempts
+        };
+        
+        // 인증 상태를 true로 업데이트
+        await updateVerificationRequest(verification);
+        console.log(`[API] 전화번호 ${formattedInput}의 인증 정보가 Firestore에 저장되었습니다.`);
+      } catch (firestoreError) {
+        // Firestore 저장 실패 시에도 백업으로 메모리에 저장
+        console.error(`[API] Firestore 저장 실패:`, firestoreError);
+      }
+      
+      // 2. 메모리 스토어에도 백업으로 저장 (개발 환경용)
+      mockVerificationStore[formattedInput] = {
+        phoneNumber: formattedInput,
+        code: code,
+        requestId: requestId,
+        createdAt: Date.now(),
+        verified: true,
+        attempts: verificationRecord.attempts
+      };
+      console.log(`[API] 전화번호 ${formattedInput}의 인증 정보가 메모리 스토어에 저장되었습니다.`);
       
       return NextResponse.json({
         success: true,
