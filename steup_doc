@@ -1,0 +1,156 @@
+Nile Check - 부모 신체 및 정신건강 관리 서비스
+1. 핵심 기능 정의
+일상 활동 모니터링
+식사 기록
+아침, 점심, 저녁, 간식 기록
+식사 시간, 상태(먹음/건너뜀), 품질 평가(1-5점)
+식사 내용 간단 설명
+수면 기록
+수면 시작 및 종료 시간
+수면 품질 평가(1-5점)
+야간 기상 여부 및 횟수
+정서 체크인
+스트레스 수준(1-10점)
+주요 감정(기쁨, 슬픔, 분노, 불안 등)
+대화 상대(배우자, 친구, 동료 등)
+배우자와의 대화 주제(일상, 자녀, 어려움, 미래 계획 등)
+활동 기록
+운동, 휴식, 취미, 사회활동 등 일상 활동 체크
+자녀 돌봄, 가사, 업무 등 부모로서의 활동 체크
+데이터 분석 및 인사이트
+주간 웰니스 리포트
+수면 패턴 분석(평균 시간, 품질)
+감정 빈도 분석
+활동 패턴 분석
+스트레스 추세 분석
+개인화된 웰빙 조언 및 개선점
+데이터 시각화
+수면 지속시간 차트
+감정 빈도 차트
+활동 분석 차트
+대화 상대 분석 차트
+부모 특화 기능
+자녀 관련 활동 트래킹
+자녀 돌봄 시간 기록
+자녀와의 활동 유형 기록
+자녀 관련 스트레스 요인 식별
+일-가정 균형 모니터링
+업무 시간 vs 가족 시간 비율 추적
+개인 시간 확보 여부 체크
+배우자와의 공동 양육 시간 분석
+부모 건강 지표
+부모 특화 스트레스 점수
+번아웃 위험도 평가
+정서적 회복력 지수
+2. 주요 페이지 구성
+대시보드
+오늘의 요약(수면 시간, 식사 로그, 활동 수)
+주요 지표 시각화(차트)
+빠른 액션 버튼(활동 기록, 리포트 보기)
+활동 기록
+주간 캘린더 뷰
+식사, 수면, 정서 체크인 기록 탭
+데이터 입력 폼
+웰니스 솔루션
+주간 웰니스 리포트 생성 및 열람
+긍정적 관찰 사항
+주의가 필요한 영역
+실행 가능한 조언
+마이페이지
+사용자 프로필 관리
+데이터 통계 및 트렌드
+설정 및 환경설정
+3. 기술 스택
+프론트엔드
+Next.js App Router
+React
+TypeScript
+Tailwind CSS
+shadcn/ui 컴포넌트
+차트: recharts 또는 비슷한 라이브러리
+백엔드
+Vercel 서버리스 함수
+Firebase Firestore DB
+인증: Firebase Authentication
+AI/분석
+웰니스 리포트 생성을 위한 AI 모델 통합
+데이터 패턴 분석 알고리즘
+4. 확장 가능한 기능
+커뮤니티 기능
+부모 커뮤니티 포럼
+익명 공유 옵션
+팁과 자원 공유
+알림 및 리마인더
+식사, 수면, 체크인 리마인더
+주간 리포트 생성 알림
+목표 달성 알림
+전문가 연결
+정신 건강 전문가 연결
+코칭 및 상담 예약
+자원 및 지원 그룹 추천
+5. 데이터 모델
+// 사용자 프로필
+export interface UserProfile {
+  uid: string;
+  email: string | null;
+  name: string | null;
+  phoneNumber: string | null;
+  isPhoneVerified: boolean;
+  createdAt: string; // ISO 형식
+  childrenInfo?: {
+    count: number;
+    ageGroups: string[]; // 영아, 유아, 초등학생 등
+  };
+}
+
+// 식사 기록
+export interface MealEntry {
+  id: string;
+  type: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  dateTime: string; // ISO 형식
+  status: 'eaten' | 'skipped';
+  description?: string;
+  quality?: number; // 1-5 척도
+  withChildren?: boolean; // 자녀와 함께했는지
+}
+
+// 수면 기록
+export interface SleepEntry {
+  id: string;
+  startTime: string; // ISO 형식
+  endTime: string; // ISO 형식
+  quality: number; // 1-5 척도
+  wokeUpDuringNight?: boolean;
+  wakeUpCount?: number;
+  wakeUpReason?: 'child' | 'stress' | 'other';
+}
+
+// 정서 체크인
+export interface WellbeingCheckinInputData {
+  stressLevel: number; // 1-10 척도
+  mainEmotions: string[]; // "joy", "sadness" 등
+  otherEmotionDetail?: string;
+  todayActivities: string[]; // "exercise", "childcare" 등
+  otherActivityDetail?: string;
+  conversationPartner?: string; // 'spouse', 'friend' 등
+  otherConversationPartnerDetail?: string;
+  spouseConversationTopics?: string[]; // 'dailyChat', 'kidsTalk' 등
+  otherSpouseTopicDetail?: string;
+  parentingChallenges?: string[]; // 'timeManagement', 'discipline' 등
+  selfCareTime?: number; // 분 단위
+}
+
+// 앱 데이터 저장소
+export interface AppStoreData {
+  meals: MealEntry[];
+  sleep: SleepEntry[];
+  checkins: WellbeingCheckinRecord[];
+  wellnessReports: WellnessReportRecord[];
+}
+6. 차별화 요소
+부모 특화 데이터 모델: 일반 웰니스 앱과 달리 자녀 돌봄, 부모로서의 도전 과제, 배우자와의 공동 양육 관련 측정 항목 포함
+부모 맞춤형 인사이트: 부모의 신체적, 정신적 건강 상태가 자녀와의 관계에 미치는 영향 분석
+균형 추적: 가정, 직장, 개인 시간 간의 균형 추적 및 개선점 제안
+시간 효율적 UX: 바쁜 부모들을 위한 간소화된 데이터 입력 프로세스와 빠른 인사이트 제공
+개인화된 조언: 부모 역할에 초점을 맞춘 맞춤형 웰니스 조언 제공
+이 앱을 통해 부모들은 자신의 일상 루틴과 정서 상태를 체계적으로 기록하고, 이를 통해 더 나은 신체적, 정신적 건강을 유지하며, 궁극적으로 더 효과적인 양육을 할 수 있도록 지원받을 수 있습니다.

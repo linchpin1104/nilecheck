@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%; /* #FFFFFF */
+    --foreground: 224 71% 4%; /* #080C1A */
+
+    --card: 210 29% 94%; /* #ECF1F6 */
+    --card-foreground: 224 71% 4%; /* #080C1A */
+
+    --popover: 210 29% 94%; /* #ECF1F6 */
+    --popover-foreground: 224 71% 4%; /* #080C1A */
+
+    --primary: 217 100% 61%; /* #3985FF */
+    --primary-foreground: 217 100% 98%; /* #F7FAFF */
+
+    --secondary: 210 25% 90%; /* #E1E8F0 */
+    --secondary-foreground: 224 70% 20%; /* #202A4A */
+
+    --muted: 210 25% 94%; /* #ECF1F6 */
+    --muted-foreground: 210 20% 50%; /* #73818F */
+
+    --accent: 196 76% 55%; /* #3ECEDD */
+    --accent-foreground: 196 70% 10%; /* #0E343A */
+    
+    --destructive: 350 59% 62%; /* #D86178 (Error Pink) */
+    --destructive-foreground: 0 0% 98%; /* #FAFAFA */
+
+    --border: 210 20% 85%; /* #CCD5DF */
+    --input: 210 25% 92%; /* #E6ECF2 */
+    --ring: 217 100% 61%; /* #3985FF */
+    
+    --chart-1: 217 100% 61%; /* Primary Blue */
+    --chart-2: 196 76% 55%;   /* Accent Light Blue */
+    --chart-3: 264 100% 62%;  /* Special Purple */
+    --chart-4: 157 71% 47%; /* Success Green */
+    --chart-5: 32 92% 62%;   /* Warning Orange */
+
+    --success: 157 71% 47%; /* #23CC8B */
+    --success-foreground: 157 70% 10%;
+    --warning: 32 92% 62%; /* #F79E46 */
+    --warning-foreground: 32 70% 10%;
+    --special: 264 100% 62%; /* #8140FF */
+    --special-foreground: 264 100% 98%;
+    
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 220 30% 10%; /* #13161C */
+    --foreground: 210 25% 95%; /* #F0F3F5 */
+
+    --card: 220 28% 14%; /* #1A1E25 */
+    --card-foreground: 210 25% 95%; /* #F0F3F5 */
+
+    --popover: 220 28% 14%; /* #1A1E25 */
+    --popover-foreground: 210 25% 95%; /* #F0F3F5 */
+
+    --primary: 217 90% 65%; /* #5095FF */
+    --primary-foreground: 217 70% 15%; /* #17263D */
+
+    --secondary: 220 25% 18%; /* #232832 */
+    --secondary-foreground: 210 20% 80%; /* #C2CBD2 */
+
+    --muted: 220 20% 25%; /* #333842 */
+    --muted-foreground: 210 15% 65%; /* #98A2AD */
+
+    --accent: 196 70% 60%; /* #4DD9E8 */
+    --accent-foreground: 196 70% 10%; /* #0E343A */
+
+    --destructive: 350 65% 55%; /* #D8566E */
+    --destructive-foreground: 350 50% 95%; /* #F9EEF0 */
+
+    --border: 220 20% 30%; /* #3C424D */
+    --input: 220 20% 22%; /* #2B303A */
+    --ring: 217 90% 65%; /* #5095FF */
+    
+    --chart-1: 217 90% 65%; /* Primary Blue - Dark */
+    --chart-2: 196 70% 60%;   /* Accent Light Blue - Dark */
+    --chart-3: 264 80% 60%;  /* Special Purple - Dark */
+    --chart-4: 157 60% 40%; /* Success Green - Dark */
+    --chart-5: 32 80% 55%;   /* Warning Orange - Dark */
+
+    --success: 157 60% 40%; /* #29A374 */
+    --success-foreground: 157 30% 90%; /* #D9F2E8 */
+    --warning: 32 80% 55%; /* #F59A3B */
+    --warning-foreground: 32 30% 90%; /* #FDEEDD */
+    --special: 264 80% 60%; /* #8B4FFF */
+    --special-foreground: 264 30% 90%; /* #EDDFFF */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-geist-sans), system-ui, -apple-system, Segoe UI, Roboto, Helvetica Neue, Arial, Noto Sans, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
+  }
+
+  html[lang="ko"] body {
+    font-family: 'Pretendard', var(--font-geist-sans), system-ui, -apple-system, Segoe UI, Roboto, Helvetica Neue, Arial, Noto Sans, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
+  }
+
+  code, kbd, samp, pre {
+    font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+}
