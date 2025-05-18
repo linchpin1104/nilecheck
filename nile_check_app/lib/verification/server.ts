@@ -1,81 +1,11 @@
 "use server";
 
-import { countries } from "@/components/ui/country-selector";
+import { countries } from "@/lib/verification/countries";
+import { formatPhoneNumber, validatePhoneNumber as validatePhone } from './phone-utils';
 
-// Avoid circular import by implementing the formatting function directly
-function formatPhoneNumber(phoneNumber: string, countryCode: string): string {
-  // Remove any non-digit characters
-  const digitsOnly = phoneNumber.replace(/\D/g, '');
-  
-  // Find country dial code
-  const country = countries.find(c => c.code === countryCode);
-  if (!country) {
-    throw new Error(`Country code ${countryCode} not found`);
-  }
-  
-  // Format with country dial code
-  const dialCode = country.dialCode.replace('+', '');
-  
-  // Handle special case for countries with country code +1 (US/Canada)
-  if (dialCode === '1') {
-    // North American Numbering Plan format: +1AAABBBCCCC
-    if (digitsOnly.length === 10) {
-      return `+1${digitsOnly}`;
-    }
-    // If already has country code
-    if (digitsOnly.startsWith('1') && digitsOnly.length === 11) {
-      return `+${digitsOnly}`;
-    }
-  }
-  
-  // Handle Korean numbers (format: +82AAABBBBCCCC)
-  if (dialCode === '82') {
-    // Remove leading 0 if present (Korean mobile numbers start with 010)
-    const numberWithoutLeadingZero = digitsOnly.startsWith('0') 
-      ? digitsOnly.substring(1) 
-      : digitsOnly;
-    return `+${dialCode}${numberWithoutLeadingZero}`;
-  }
-  
-  // For other countries, just add the dial code
-  // Remove leading 0 which is common in many countries
-  const formattedNumber = digitsOnly.startsWith('0') 
-    ? digitsOnly.substring(1) 
-    : digitsOnly;
-  
-  return `+${dialCode}${formattedNumber}`;
-}
-
-// Server-side validation function
+// Server-side validation function as async (required for server actions)
 export async function validatePhoneNumber(phoneNumber: string, countryCode: string): Promise<boolean> {
-  // Find country
-  const country = countries.find(c => c.code === countryCode);
-  if (!country) return false;
-  
-  const digitsOnly = phoneNumber.replace(/\D/g, '');
-  
-  // Basic validation based on country
-  switch (countryCode) {
-    case 'KR': // Korea
-      // Korean mobile numbers are 10-11 digits (including leading 0)
-      return (digitsOnly.length === 10 || digitsOnly.length === 11) && 
-             (digitsOnly.startsWith('0') || digitsOnly.startsWith('10'));
-    
-    case 'US': // United States
-    case 'CA': // Canada
-      // North American numbers are 10 digits
-      return digitsOnly.length === 10 || 
-             (digitsOnly.length === 11 && digitsOnly.startsWith('1'));
-    
-    case 'JP': // Japan
-      // Japanese mobile numbers are 11 digits (including leading 0)
-      return (digitsOnly.length === 10 || digitsOnly.length === 11) && 
-             digitsOnly.startsWith('0');
-    
-    default:
-      // Generic validation - just check reasonable length
-      return digitsOnly.length >= 8 && digitsOnly.length <= 15;
-  }
+  return validatePhone(phoneNumber, countryCode);
 }
 
 // Function to send verification SMS using Solapi (actual implementation)

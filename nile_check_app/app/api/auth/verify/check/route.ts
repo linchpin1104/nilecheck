@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { AES, enc } from 'crypto-js';
-import { formatPhoneNumber } from '@/lib/verification/phone-service';
+import { formatPhoneNumber } from '@/lib/verification/phone-utils';
 
 export async function POST(req: NextRequest) {
   try {
