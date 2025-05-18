@@ -23,6 +23,7 @@ export interface VerificationRequest {
 
 // Global type augmentation for global store
 declare global {
+  // eslint-disable-next-line no-var
   var __mockVerificationStore: VerificationStore | undefined;
 }
 

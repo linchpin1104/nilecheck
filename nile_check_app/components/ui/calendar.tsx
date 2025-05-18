@@ -55,12 +55,12 @@ function Calendar({
       }}
       components={{
         PreviousMonthButton: (props) => {
-          const { className, ...rest } = props;
-          return <button {...rest}><ChevronLeft className="h-4 w-4" /></button>;
+          const { ...buttonProps } = props;
+          return <button {...buttonProps}><ChevronLeft className="h-4 w-4" /></button>;
         },
         NextMonthButton: (props) => {
-          const { className, ...rest } = props;
-          return <button {...rest}><ChevronRight className="h-4 w-4" /></button>;
+          const { ...buttonProps } = props;
+          return <button {...buttonProps}><ChevronRight className="h-4 w-4" /></button>;
         },
       }}
       {...props}

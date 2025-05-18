@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/lib/auth";
 import { isValidKoreanPhoneNumber } from "@/lib/solapi";
@@ -15,7 +15,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 // 서버 컴포넌트가 이 페이지를 정적 생성하지 않도록 지정
 export const dynamic = 'force-dynamic';
 
-export default function LoginPage() {
+// SearchParams를 사용하는 클라이언트 컴포넌트
+function LoginForm() {
   const searchParams = useSearchParams();
   const { isLoading } = useAuthStore();
   
@@ -112,93 +113,106 @@ export default function LoginPage() {
   };
   
   return (
-    <div className="flex justify-center items-center min-h-screen bg-slate-50 px-4">
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="space-y-2 text-center">
-          <CardTitle className="text-2xl font-bold">Nile Check 로그인</CardTitle>
-          <CardDescription>전화번호와 비밀번호를 입력하여 로그인하세요.</CardDescription>
-        </CardHeader>
-        
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <Alert variant="destructive" className="mb-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            
-            <div className="space-y-2">
-              <Label htmlFor="phoneNumber">전화번호</Label>
-              <Input
-                id="phoneNumber"
-                type="tel"
-                placeholder="010-0000-0000"
-                value={phoneNumber}
-                onChange={handlePhoneNumberChange}
-                required
-                autoComplete="tel"
-                className="bg-white"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">비밀번호</Label>
-                <Link 
-                  href="/forgot-password" 
-                  className="text-xs text-primary hover:underline"
-                >
-                  비밀번호 찾기
-                </Link>
-              </div>
-              <Input
-                id="password"
-                type="password"
-                placeholder="비밀번호를 입력하세요"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                className="bg-white"
-              />
-            </div>
-            
-            <Button 
-              type="submit" 
-              className="w-full mt-6" 
-              disabled={isSubmitting || isLoading}
-            >
-              {(isSubmitting || isLoading) && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              로그인
-            </Button>
-            
-            <div className="text-center text-sm mt-4">
-              <span className="text-muted-foreground">계정이 없으신가요?</span>{" "}
-              <Link href="/register" className="text-primary hover:underline">
-                회원가입
+    <Card className="w-full max-w-md shadow-lg">
+      <CardHeader className="space-y-2 text-center">
+        <CardTitle className="text-2xl font-bold">Nile Check 로그인</CardTitle>
+        <CardDescription>전화번호와 비밀번호를 입력하여 로그인하세요.</CardDescription>
+      </CardHeader>
+      
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          
+          <div className="space-y-2">
+            <Label htmlFor="phoneNumber">전화번호</Label>
+            <Input
+              id="phoneNumber"
+              type="tel"
+              placeholder="010-0000-0000"
+              value={phoneNumber}
+              onChange={handlePhoneNumberChange}
+              required
+              autoComplete="tel"
+              className="bg-white"
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">비밀번호</Label>
+              <Link 
+                href="/forgot-password" 
+                className="text-xs text-primary hover:underline"
+              >
+                비밀번호 찾기
               </Link>
             </div>
-            
-            {process.env.NODE_ENV === 'development' && (
-              <Button 
-                type="button" 
-                className="w-full mt-4" 
-                variant="secondary"
-                onClick={() => {
-                  // 테스트 계정 자동 입력
-                  setPhoneNumber("010-4321-5678");
-                  setPassword("123456");
-                }}
-              >
-                테스트 계정 자동 입력
-              </Button>
+            <Input
+              id="password"
+              type="password"
+              placeholder="비밀번호를 입력하세요"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+              className="bg-white"
+            />
+          </div>
+          
+          <Button 
+            type="submit" 
+            className="w-full mt-6" 
+            disabled={isSubmitting || isLoading}
+          >
+            {(isSubmitting || isLoading) && (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             )}
-          </form>
-        </CardContent>
-      </Card>
+            로그인
+          </Button>
+          
+          <div className="text-center text-sm mt-4">
+            <span className="text-muted-foreground">계정이 없으신가요?</span>{" "}
+            <Link href="/register" className="text-primary hover:underline">
+              회원가입
+            </Link>
+          </div>
+          
+          {process.env.NODE_ENV === 'development' && (
+            <Button 
+              type="button" 
+              className="w-full mt-4" 
+              variant="secondary"
+              onClick={() => {
+                // 테스트 계정 자동 입력
+                setPhoneNumber("010-4321-5678");
+                setPassword("123456");
+              }}
+            >
+              테스트 계정 자동 입력
+            </Button>
+          )}
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+// 메인 로그인 페이지 컴포넌트
+export default function LoginPage() {
+  return (
+    <div className="flex justify-center items-center min-h-screen bg-slate-50 px-4">
+      <Suspense fallback={
+        <div className="w-full max-w-md p-8 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      }>
+        <LoginForm />
+      </Suspense>
     </div>
   );
 } 

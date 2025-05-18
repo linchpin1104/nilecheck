@@ -4,7 +4,7 @@ import type { AppStoreData, MealEntry, SleepEntry, WellbeingCheckinRecord, Welln
 import { useState, useEffect, useCallback, createContext, useContext, type ReactNode, useMemo } from 'react';
 import { db } from '@/lib/firebase/firebase';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
-import { subDays, formatISO, setHours, setMinutes, parseISO, format, startOfDay, addDays, isWithinInterval, startOfWeek, endOfWeek, endOfDay } from 'date-fns';
+import { formatISO, parseISO, format, startOfDay, isWithinInterval, startOfWeek, endOfWeek, endOfDay } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 
 // Constants
