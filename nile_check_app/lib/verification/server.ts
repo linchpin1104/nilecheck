@@ -67,19 +67,16 @@ export async function sendVerificationSMS(
     
     // Use dynamic import for Solapi
     try {
-      // Dynamic import for solapi (ESM module)
-      const solapi = await import('solapi');
-      const { config, msg } = solapi;
+      // Import Solapi SDK
+      const solapiModule = await import('solapi');
       
-      // Set API credentials
-      config.init({
-        apiKey,
-        apiSecret
-      });
+      // Create Solapi message service instance
+      const SolapiMessageService = solapiModule.SolapiMessageService;
+      const messageService = new SolapiMessageService(apiKey, apiSecret);
       
       console.log(`[Solapi] Sending SMS with sender number: ${senderNumber}`);
       
-      const result = await msg.send({
+      const result = await messageService.sendOne({
         to: formattedPhoneNumber,
         from: senderNumber,
         text: messageContent
@@ -87,7 +84,7 @@ export async function sendVerificationSMS(
       
       console.log(`[Solapi] Response:`, result);
       
-      if (result.statusCode === '2000' || result.statusCode === 2000) {
+      if (result.statusCode === '2000' || String(result.statusCode) === '2000') {
         return { success: true, message: 'Verification code sent successfully' };
       } else {
         throw new Error(`Failed to send SMS: ${result.statusMessage || JSON.stringify(result)}`);
