@@ -48,28 +48,35 @@ export async function POST(req: NextRequest) {
       path: '/'
     });
 
-    // Send the verification SMS (in production)
-    if (process.env.NODE_ENV === 'production') {
-      const smsResult = await sendSMS(phoneNumber, countryCode, verificationCode);
-      if (!smsResult.success) {
+    // Always attempt to send the SMS regardless of environment
+    const smsResult = await sendSMS(phoneNumber, countryCode, verificationCode);
+    
+    // Check if the SMS was sent successfully
+    if (!smsResult.success) {
+      console.error(`[SMS Error] ${smsResult.message}`);
+      
+      // In development, continue despite SMS failure
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[Development] Proceeding despite SMS error: ${smsResult.message}`);
+      } else {
+        // In production, return error
         return NextResponse.json({
           success: false,
-          message: smsResult.message || "Failed to send verification SMS"
+          message: smsResult.message || "문자 발송에 실패했습니다."
         }, { status: 500 });
       }
-    } else {
-      // Just log for development
-      console.log(`[Verification] Phone: ${formattedPhoneNumber}, Code: ${verificationCode}`);
     }
     
     // Return success response with the requestId
     return NextResponse.json({
       success: true,
       requestId,
-      message: "Verification code sent successfully",
+      message: smsResult.success 
+        ? "인증번호가 발송되었습니다."
+        : "개발 환경에서는 문자가 발송되지 않습니다. 아래 인증번호를 사용하세요.",
       // Include test code only in development
       ...(process.env.NODE_ENV === 'development' && {
-        testCode: verificationCode // Only include in development!
+        testCode: verificationCode
       })
     });
     

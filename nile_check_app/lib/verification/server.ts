@@ -38,42 +38,64 @@ export async function sendVerificationSMS(
         messageContent = `[Nile Check] Your verification code: ${verificationCode}\nPlease enter this code on the verification screen.`;
     }
     
-    // In a real implementation, this would connect to Solapi
-    // For development, we'll simulate a successful response
+    // Log SMS details before sending
     console.log(`[SMS Verification] Sending code ${verificationCode} to ${formattedPhoneNumber} (${countryName})`);
     console.log(`[SMS Content] ${messageContent}`);
     
-    // Simulate API call to Solapi
-    // In production, you would replace this with actual API call:
+    // Check if Solapi API credentials are configured
+    const apiKey = process.env.SOLAPI_API_KEY;
+    const apiSecret = process.env.SOLAPI_API_SECRET;
+    const senderNumber = process.env.SOLAPI_SENDER_NUMBER;
     
-    /* 
-    // Example Solapi implementation
-    const { config, msg } = require('solapi');
-    
-    // Set API credentials
-    config.init({
-      apiKey: process.env.SOLAPI_API_KEY,
-      apiSecret: process.env.SOLAPI_API_SECRET
-    });
-    
-    const result = await msg.send({
-      to: formattedPhoneNumber,
-      from: process.env.SOLAPI_SENDER_NUMBER,
-      text: messageContent
-    });
-    
-    if (result.statusCode === '2000') {
-      return { success: true, message: 'Verification code sent successfully' };
-    } else {
-      throw new Error(`Failed to send SMS: ${result.statusMessage}`);
+    if (!apiKey || !apiSecret || !senderNumber) {
+      console.error('[SMS Error] Missing Solapi credentials:', {
+        apiKey: apiKey ? 'Set' : 'Missing',
+        apiSecret: apiSecret ? 'Set' : 'Missing',
+        senderNumber: senderNumber ? 'Set' : 'Missing',
+      });
+      
+      // Return success in development mode for testing purposes
+      if (process.env.NODE_ENV === 'development') {
+        return { 
+          success: true, 
+          message: `[Development] Simulated SMS to ${formattedPhoneNumber}. Check environment variables for actual sending.` 
+        };
+      } else {
+        throw new Error('SMS service credentials not configured');
+      }
     }
-    */
     
-    // Simulate successful response
-    return { 
-      success: true, 
-      message: `Verification code sent to ${formattedPhoneNumber}` 
-    };
+    // Use dynamic import for Solapi
+    try {
+      // Dynamic import for solapi (ESM module)
+      const solapi = await import('solapi');
+      const { config, msg } = solapi;
+      
+      // Set API credentials
+      config.init({
+        apiKey,
+        apiSecret
+      });
+      
+      console.log(`[Solapi] Sending SMS with sender number: ${senderNumber}`);
+      
+      const result = await msg.send({
+        to: formattedPhoneNumber,
+        from: senderNumber,
+        text: messageContent
+      });
+      
+      console.log(`[Solapi] Response:`, result);
+      
+      if (result.statusCode === '2000' || result.statusCode === 2000) {
+        return { success: true, message: 'Verification code sent successfully' };
+      } else {
+        throw new Error(`Failed to send SMS: ${result.statusMessage || JSON.stringify(result)}`);
+      }
+    } catch (err) {
+      console.error('[Solapi Error]', err);
+      throw new Error(`SMS sending failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
     
   } catch (error) {
     console.error('Error sending verification SMS:', error);
