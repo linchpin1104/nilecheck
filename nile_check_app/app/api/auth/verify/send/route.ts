@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateVerificationCode, formatPhoneNumber, validatePhoneNumber } from '@/lib/verification/phone-service';
-import { sendVerificationSMS as sendSMS } from '@/lib/verification/server';
+import { generateVerificationCode, formatPhoneNumber } from '@/lib/verification/phone-service';
+import { validatePhoneNumber, sendVerificationSMS as sendSMS } from '@/lib/verification/server';
 import { cookies } from 'next/headers';
 import { AES } from 'crypto-js';
 
@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     const { phoneNumber, countryCode = "KR" } = await req.json();
     
     // Validate the phone number based on country
-    if (!validatePhoneNumber(phoneNumber, countryCode)) {
+    if (!(await validatePhoneNumber(phoneNumber, countryCode))) {
       return NextResponse.json({
         success: false,
         message: "유효하지 않은 전화번호 형식입니다."

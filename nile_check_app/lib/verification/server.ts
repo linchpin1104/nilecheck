@@ -46,6 +46,38 @@ function formatPhoneNumber(phoneNumber: string, countryCode: string): string {
   return `+${dialCode}${formattedNumber}`;
 }
 
+// Server-side validation function
+export async function validatePhoneNumber(phoneNumber: string, countryCode: string): Promise<boolean> {
+  // Find country
+  const country = countries.find(c => c.code === countryCode);
+  if (!country) return false;
+  
+  const digitsOnly = phoneNumber.replace(/\D/g, '');
+  
+  // Basic validation based on country
+  switch (countryCode) {
+    case 'KR': // Korea
+      // Korean mobile numbers are 10-11 digits (including leading 0)
+      return (digitsOnly.length === 10 || digitsOnly.length === 11) && 
+             (digitsOnly.startsWith('0') || digitsOnly.startsWith('10'));
+    
+    case 'US': // United States
+    case 'CA': // Canada
+      // North American numbers are 10 digits
+      return digitsOnly.length === 10 || 
+             (digitsOnly.length === 11 && digitsOnly.startsWith('1'));
+    
+    case 'JP': // Japan
+      // Japanese mobile numbers are 11 digits (including leading 0)
+      return (digitsOnly.length === 10 || digitsOnly.length === 11) && 
+             digitsOnly.startsWith('0');
+    
+    default:
+      // Generic validation - just check reasonable length
+      return digitsOnly.length >= 8 && digitsOnly.length <= 15;
+  }
+}
+
 // Function to send verification SMS using Solapi (actual implementation)
 export async function sendVerificationSMS(
   phoneNumber: string, 
