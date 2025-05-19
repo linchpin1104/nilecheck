@@ -12,6 +12,7 @@ import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CountrySelector } from "@/components/ui/country-selector";
 import { validatePhoneNumber, formatPhoneNumber } from "@/lib/verification/phone-service";
+import { useSession } from "@/contexts/SessionProvider";
 
 // 서버 컴포넌트가 이 페이지를 정적 생성하지 않도록 지정
 export const dynamic = 'force-dynamic';
@@ -19,7 +20,8 @@ export const dynamic = 'force-dynamic';
 // SearchParams를 사용하는 클라이언트 컴포넌트
 function LoginForm() {
   const searchParams = useSearchParams();
-  const { isLoading } = useAuthStore();
+  const { isLoading: authIsLoading } = useAuthStore();
+  const { checkSession } = useSession();
   
   const [phoneNumber, setPhoneNumber] = useState("");
   const [countryCode, setCountryCode] = useState("KR");
@@ -96,10 +98,10 @@ function LoginForm() {
       console.log("로그인 결과:", result);
       
       if (result.success) {
-        console.log("로그인 성공, 페이지 이동:", callbackUrl || "/dashboard");
+        console.log("로그인 성공, 세션 갱신 후 페이지 이동");
         
-        // 세션 가져오기
-        await fetch('/api/auth/session').then(res => res.json());
+        // 세션 정보 갱신
+        await checkSession();
         
         // 모든 사용자에 대해 window.location.href 사용
         // router.push() 대신 직접 이동하여 문제 우회
@@ -209,9 +211,9 @@ function LoginForm() {
           <Button 
             type="submit" 
             className="w-full mt-6" 
-            disabled={isSubmitting || isLoading}
+            disabled={isSubmitting || authIsLoading}
           >
-            {(isSubmitting || isLoading) && (
+            {(isSubmitting || authIsLoading) && (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             )}
             로그인
