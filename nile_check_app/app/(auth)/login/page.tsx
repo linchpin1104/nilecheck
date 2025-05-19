@@ -3,12 +3,11 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/lib/auth";
-import { isValidKoreanPhoneNumber } from "@/lib/solapi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Info, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CountrySelector } from "@/components/ui/country-selector";
@@ -28,13 +27,20 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [callbackUrl, setCallbackUrl] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
   
   useEffect(() => {
-    // Get the callback URL from the query parameters
+    // Get the callback URL and other parameters from the query parameters
     if (searchParams) {
       const callback = searchParams.get('callbackUrl');
       if (callback) {
         setCallbackUrl(callback);
+      }
+      
+      // 세션 만료 체크
+      const expired = searchParams.get('session_expired');
+      if (expired === 'true') {
+        setSessionExpired(true);
       }
     }
     
@@ -136,6 +142,15 @@ function LoginForm() {
       </CardHeader>
       
       <CardContent>
+        {sessionExpired && (
+          <Alert variant="warning" className="mb-4 bg-yellow-50 border-yellow-200">
+            <Info className="h-4 w-4 text-yellow-600" />
+            <AlertDescription className="text-yellow-800">
+              세션이 만료되었습니다. 다시 로그인해주세요.
+            </AlertDescription>
+          </Alert>
+        )}
+      
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <Alert variant="destructive" className="mb-4">

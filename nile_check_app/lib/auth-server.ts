@@ -229,7 +229,7 @@ export function setAuthCookie(response: NextResponse, token: string) {
     value: token,
     httpOnly: true,
     path: '/',
-    secure: process.env.NODE_ENV === 'production',
+    secure: false, // 개발 환경에서도 작동하도록 false로 설정
     maxAge: 60 * 60 * 24 * 7, // 7일
     sameSite: 'lax'
   });

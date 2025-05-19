@@ -208,6 +208,26 @@ export const useAppStore = create<AppState>()(
             set((state) => ({
               checkins: state.checkins.map(c => c.id === checkin.id ? { ...c, id: data.checkin.id } : c)
             }));
+            
+            // 세션 유효성 확인
+            if (data.sessionValid === false) {
+              console.warn('[Store] 체크인 후 세션이 유효하지 않음, 세션 갱신 시도');
+              // 세션 상태 확인 및 갱신 시도
+              fetch('/api/auth/session')
+                .then(res => res.json())
+                .then(sessionData => {
+                  if (!sessionData.authenticated) {
+                    console.error('[Store] 세션이 만료되었습니다. 로그인 페이지로 이동합니다.');
+                    // 다시 로그인하도록 리다이렉트
+                    window.location.href = '/login?session_expired=true';
+                  } else {
+                    console.log('[Store] 세션이 성공적으로 갱신되었습니다.');
+                  }
+                })
+                .catch(error => {
+                  console.error('[Store] 세션 갱신 중 오류:', error);
+                });
+            }
           } else {
             console.error('[Store] 체크인 데이터 서버 저장 실패:', data.error);
           }

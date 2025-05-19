@@ -7,6 +7,7 @@ import {
   logApiAction,
   getUserAppData
 } from '@/lib/api/utils';
+import { getServerSession } from '@/lib/auth-server';
 
 // 체크인 데이터 목록 조회
 export async function GET(request: Request) {
@@ -51,10 +52,19 @@ export async function GET(request: Request) {
 // 체크인 데이터 생성
 export async function POST(request: Request) {
   try {
+    // 세션 확인하여 인증된 사용자인지 검증
+    const userSession = await getServerSession();
+    
     const { uid, checkinData } = await request.json();
 
     if (!uid || !checkinData) {
       return createApiErrorResponse('사용자 ID와 체크인 데이터가 필요합니다.', 400);
+    }
+    
+    // 세션 사용자 ID와 요청 ID가 다른 경우 검증 실패
+    if (userSession?.id && userSession.id !== uid) {
+      console.error(`세션 유저 ID(${userSession?.id})와 요청 ID(${uid})가 일치하지 않습니다.`);
+      return createApiErrorResponse('인증 토큰과 사용자 ID가 일치하지 않습니다.', 401);
     }
 
     // 필수 필드 검증
@@ -117,10 +127,13 @@ export async function POST(request: Request) {
           const updatedCheckin = checkins.find(c => c.date === dateStr);
           
           if (updatedCheckin) {
-            return createApiResponse({
+            const response = createApiResponse({
               checkin: updatedCheckin,
+              sessionValid: !!userSession, // 세션 유효성 정보 추가
               updated: checkins.length === ((appData.checkins || []) as WellbeingCheckinRecord[]).length
             }, true, `체크인 데이터가 ${checkins.length === ((appData.checkins || []) as WellbeingCheckinRecord[]).length ? '업데이트' : '저장'}되었습니다.`);
+            
+            return response;
           }
         }
       }
