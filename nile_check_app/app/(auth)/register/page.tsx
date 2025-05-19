@@ -91,7 +91,7 @@ function RegisterForm() {
   return (
     <Card className="w-full max-w-md shadow-lg">
       <CardHeader className="space-y-2 text-center">
-        <CardTitle className="text-2xl font-bold">Nile Check 회원가입</CardTitle>
+        <CardTitle className="text-2xl font-bold">더나일체크 회원가입</CardTitle>
         <CardDescription>
           전화번호 인증 후 회원가입을 진행해주세요.
         </CardDescription>

@@ -258,13 +258,26 @@ export default function DashboardPage() {
   // 새로고침 함수 최적화 (중복 요청 방지)
   const refreshData = async () => {
     // 이미 로딩 중이면 중복 요청 방지
-    if (isRefreshing) return;
+    if (isRefreshing || isLoading) {
+      console.log('이미 데이터 새로고침 중, 중복 요청 방지');
+      return;
+    }
     
     try {
       setIsRefreshing(true);
       
       // 현재는 테스트용 user_default 아이디 사용 (실제로는 인증된 사용자 ID 사용)
       const userId = 'user_default';
+      
+      // 마지막 동기화 시간 체크 (5초 이내 중복 요청 방지)
+      const now = Date.now();
+      const lastSyncTime = useAppStore.getState().lastSyncTime || 0;
+      
+      if (now - lastSyncTime < 5000 && isInitialized) {
+        console.log('최근 5초 이내 동기화 완료, 중복 요청 방지');
+        setIsRefreshing(false);
+        return;
+      }
       
       // 서버에서 데이터 동기화
       console.log('서버에서 데이터 동기화 시작');
@@ -280,10 +293,8 @@ export default function DashboardPage() {
       const todaySummary = getTodaySummary();
       setSummary(todaySummary);
       
-      // 1초 후 새로고침 상태 해제 (로딩 표시를 위해)
-      setTimeout(() => {
-        setIsRefreshing(false);
-      }, 1000);
+      // 새로고침 상태 해제
+      setIsRefreshing(false);
     } catch (error) {
       console.error('데이터 새로고침 중 오류 발생:', error);
       setIsRefreshing(false);
@@ -292,6 +303,12 @@ export default function DashboardPage() {
 
   // 라우트 변경 시 자동 데이터 동기화 (isInitialized가 false일 때만)
   useEffect(() => {
+    // 이미 동기화 중이면 중복 호출 방지
+    if (isLoading || isRefreshing) {
+      console.log('이미 데이터 동기화 중, 중복 요청 방지');
+      return;
+    }
+    
     if (!isInitialized) {
       const userId = 'user_default'; // 실제 사용자 ID로 대체 필요
       syncData(userId);
@@ -299,8 +316,16 @@ export default function DashboardPage() {
       // 이미 초기화되었으나 페이지 이동 시 데이터 새로고침
       // 중복 호출 방지를 위한 디바운스 적용
       const refreshTimeout = setTimeout(() => {
-        console.log('페이지 이동으로 데이터 새로고침');
-        refreshData();
+        // lastSyncTime을 확인하여 5초 내에 이미 동기화했다면 스킵
+        const now = Date.now();
+        const lastSyncTime = useAppStore.getState().lastSyncTime || 0;
+        
+        if (now - lastSyncTime > 5000) {
+          console.log('페이지 이동으로 데이터 새로고침');
+          refreshData();
+        } else {
+          console.log('최근 동기화 완료 (5초 이내), 새로고침 스킵');
+        }
       }, 300);
       
       return () => clearTimeout(refreshTimeout);

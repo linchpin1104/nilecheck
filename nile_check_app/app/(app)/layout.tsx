@@ -28,7 +28,7 @@ export default function AppLayout({
       <header className="bg-white border-b shadow-sm sticky top-0 z-10">
         <nav className="container mx-auto flex items-center justify-between px-4 py-3">
           <Link href="/dashboard" className="text-xl font-bold text-primary">
-            Nile Check
+            더나일체크
           </Link>
           
           <div className="hidden md:flex space-x-6">
@@ -96,7 +96,7 @@ export default function AppLayout({
       
       <footer className="bg-white border-t py-6">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>© 2023 Nile Check. All rights reserved.</p>
+          <p>© 2024 더나일체크. All rights reserved.</p>
         </div>
       </footer>
     </div>

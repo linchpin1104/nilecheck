@@ -26,16 +26,16 @@ export async function sendVerificationSMS(
     
     switch (countryCode) {
       case 'KR':
-        messageContent = `[Nile Check] 인증번호: ${verificationCode}\n이 번호를 인증 화면에 입력해주세요.`;
+        messageContent = `[더나일체크] 인증번호: ${verificationCode}\n이 번호를 인증 화면에 입력해주세요.`;
         break;
       case 'JP':
-        messageContent = `[Nile Check] 認証番号: ${verificationCode}\nこの番号を認証画面に入力してください。`;
+        messageContent = `[더나일체크] 認証番号: ${verificationCode}\nこの番号を認証画面に入力してください。`;
         break;
       case 'CN':
-        messageContent = `[Nile Check] 验证码: ${verificationCode}\n请在验证屏幕上输入此号码。`;
+        messageContent = `[더나일체크] 验证码: ${verificationCode}\n请在验证屏幕上输入此号码。`;
         break;
       default:
-        messageContent = `[Nile Check] Your verification code: ${verificationCode}\nPlease enter this code on the verification screen.`;
+        messageContent = `[더나일체크] Your verification code: ${verificationCode}\nPlease enter this code on the verification screen.`;
     }
     
     // Log SMS details before sending

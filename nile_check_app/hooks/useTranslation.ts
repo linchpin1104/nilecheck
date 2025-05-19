@@ -20,7 +20,7 @@ const translations: Record<TranslationKey, string> = {
   'dashboard.wellnessReports.title': '웰니스 리포트',
   'dashboard.wellnessReports.description': '주간 웰니스 리포트를 확인하세요',
   'dashboard.wellnessReports.viewButton': '리포트 보기',
-  'dashboard.welcome.title': 'Nile Check에 오신 것을 환영합니다',
+  'dashboard.welcome.title': '더나일체크에 오신 것을 환영합니다',
   'dashboard.welcome.description': '일상 활동을 기록하고 건강 관리에 도움을 받으세요.',
   'dashboard.welcome.logFirstActivity': '첫 활동 기록하기',
   'dashboard.welcome.viewWellnessReports': '웰니스 리포트 보기',

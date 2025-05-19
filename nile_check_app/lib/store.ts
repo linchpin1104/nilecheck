@@ -268,7 +268,7 @@ export const useAppStore = create<AppState>()(
           // 이미 로딩 중이면 중복 요청 방지
           if (get().isLoading) {
             console.log('[Store] 이미 데이터 동기화 중, 중복 요청 방지');
-            return false;
+            return true;
           }
           
           set({ isLoading: true });

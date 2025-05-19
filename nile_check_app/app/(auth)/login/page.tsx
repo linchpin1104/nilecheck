@@ -139,7 +139,7 @@ function LoginForm() {
   return (
     <Card className="w-full max-w-md shadow-lg">
       <CardHeader className="space-y-2 text-center">
-        <CardTitle className="text-2xl font-bold">Nile Check 로그인</CardTitle>
+        <CardTitle className="text-2xl font-bold">더나일체크 로그인</CardTitle>
         <CardDescription>전화번호와 비밀번호를 입력하여 로그인하세요.</CardDescription>
       </CardHeader>
       

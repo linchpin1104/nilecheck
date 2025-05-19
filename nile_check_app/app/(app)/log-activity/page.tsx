@@ -56,6 +56,14 @@ export default function LogActivityPage() {
           });
         }
         setIsRefreshing(false);
+      }).catch(error => {
+        console.error('[LogActivity] 데이터 동기화 에러:', error);
+        setIsRefreshing(false);
+        toast({
+          title: "동기화 오류",
+          description: "데이터 동기화 중 오류가 발생했습니다.",
+          variant: "destructive"
+        });
       });
     } else {
       // 로그인하지 않은 상태에서는 2초 후 로그인 프롬프트 표시
@@ -221,10 +229,38 @@ export default function LogActivityPage() {
       return;
     }
 
+    // 이미 새로고침 중이면 중복 요청 방지
+    if (isRefreshing) {
+      console.log('[LogActivity] 이미 데이터 새로고침 중, 중복 요청 방지');
+      return;
+    }
+
     setIsRefreshing(true);
     console.log('[LogActivity] 데이터 자동 새로고침 중...');
     
     try {
+      // 마지막 동기화 시간 체크 (5초 이내 중복 요청 방지)
+      const now = Date.now();
+      const lastSyncTime = useAppStore.getState().lastSyncTime || 0;
+      
+      if (now - lastSyncTime < 5000) {
+        console.log('[LogActivity] 최근 5초 이내 동기화 완료, 즉시 데이터 업데이트');
+        // 선택된 날짜의 데이터 다시 불러오기
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        const dateMeals = getMealsOnDate(dateStr);
+        const dateSleep = getSleepEntryForNightOf(dateStr);
+        const dateCheckin = getCheckinForDate(dateStr);
+        
+        setDateRecord({
+          meals: dateMeals,
+          sleep: dateSleep,
+          checkin: dateCheckin
+        });
+        
+        setIsRefreshing(false);
+        return;
+      }
+      
       const success = await syncData(user.id);
       
       if (success) {

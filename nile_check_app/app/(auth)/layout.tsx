@@ -27,7 +27,7 @@ export default function AuthLayout({
             <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white font-bold">
               N
             </div>
-            <h1 className="text-xl font-bold text-primary">Nile Check</h1>
+            <h1 className="text-xl font-bold text-primary">더나일체크</h1>
           </div>
         </div>
       </header>
@@ -36,7 +36,7 @@ export default function AuthLayout({
       
       <footer className="py-6 mt-8">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>© 2024 Nile Check. All rights reserved.</p>
+          <p>© 2024 더나일체크. All rights reserved.</p>
         </div>
       </footer>
     </div>
