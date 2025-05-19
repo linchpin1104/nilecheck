@@ -40,10 +40,10 @@ export async function POST(req: NextRequest) {
       process.env.VERIFICATION_SECRET || 'verification-secret-key'
     ).toString();
     
-    // Store in cookie that expires in 10 minutes
+    // Store in cookie that expires in 5 minutes
     const cookieStore = await cookies();
     cookieStore.set(`verify_${requestId}`, encryptedData, { 
-      maxAge: 10 * 60, // 10 minutes
+      maxAge: 5 * 60, // 5 minutes
       httpOnly: true,
       path: '/'
     });

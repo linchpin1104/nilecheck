@@ -3,6 +3,7 @@ import { createSession, User, setAuthCookie } from '@/lib/auth-server';
 import { connectToFirestore } from '@/lib/firebase/server';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import bcrypt from 'bcrypt';
+import { standardizePhoneNumber, removeHyphens } from '@/lib/firebase/db-service';
 
 // 테스트 모드에서 사용할 계정
 const TEST_ACCOUNTS = [
@@ -21,14 +22,16 @@ const TEST_ACCOUNTS = [
 
 export async function POST(req: NextRequest) {
   try {
-    let { phoneNumber, password } = await req.json();
+    let { phoneNumber, password: passwordInput } = await req.json();
     
-    if (!phoneNumber || !password) {
+    if (!phoneNumber || !passwordInput) {
       return NextResponse.json(
         { success: false, message: '전화번호와 비밀번호를 모두 입력해주세요.' },
         { status: 400 }
       );
     }
+    
+    console.log(`[Auth API] 로그인 요청 - 원본 전화번호: ${phoneNumber}`);
     
     // 전화번호 형식 표준화 (+82로 시작하면 0으로 변환)
     if (phoneNumber.startsWith('+82')) {
@@ -37,13 +40,26 @@ export async function POST(req: NextRequest) {
       console.log(`[Auth API] 국제 전화번호 형식 변환: ${originalPhone} -> ${phoneNumber}`);
     }
     
-    console.log(`[Auth API] 로그인 시도: ${phoneNumber}`);
+    // 전화번호 표준화 및 하이픈 없는 형식 준비
+    const originalPhone = phoneNumber;
+    phoneNumber = standardizePhoneNumber(phoneNumber);
+    const phoneWithoutHyphens = removeHyphens(phoneNumber);
+    
+    console.log(`[Auth API] 로그인 시도:
+      원본: ${originalPhone}
+      표준화: ${phoneNumber}
+      하이픈 없음: ${phoneWithoutHyphens}`);
     
     // 테스트 모드에서 테스트 계정 처리
     if (process.env.NODE_ENV === 'development') {
-      const testAccount = TEST_ACCOUNTS.find(acc => acc.phoneNumber === phoneNumber && acc.password === password);
+      // 다양한 형식으로 비교
+      const testAccount = TEST_ACCOUNTS.find(acc => 
+        acc.phoneNumber === phoneNumber || 
+        removeHyphens(acc.phoneNumber) === phoneWithoutHyphens ||
+        acc.phoneNumber === originalPhone
+      );
       
-      if (testAccount) {
+      if (testAccount && testAccount.password === passwordInput) {
         console.log(`[Auth API] 테스트 계정으로 로그인: ${testAccount.userData.name}`);
         
         // JWT 토큰 생성
@@ -84,11 +100,64 @@ export async function POST(req: NextRequest) {
     }
     
     const usersRef = collection(db, 'users');
-    const q = query(usersRef, where('phoneNumber', '==', phoneNumber));
-    const querySnapshot = await getDocs(q);
+    
+    // 다양한 전화번호 형식으로 검색 시도
+    let querySnapshot;
+    let foundPhoneFormat = '';
+    
+    // 1. 표준화된 형식으로 검색
+    console.log(`[Auth API] 표준화된 형식으로 사용자 검색: ${phoneNumber}`);
+    let q = query(usersRef, where('phoneNumber', '==', phoneNumber));
+    querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      foundPhoneFormat = '표준화된 형식';
+    } else {
+      // 2. 하이픈 없는 형식으로 검색
+      console.log(`[Auth API] 하이픈 없는 형식으로 사용자 검색: ${phoneWithoutHyphens}`);
+      q = query(usersRef, where('phoneNumber', '==', phoneWithoutHyphens));
+      querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        foundPhoneFormat = '하이픈 없는 형식';
+      } else {
+        // 3. 원본 형식으로 검색
+        console.log(`[Auth API] 원본 형식으로 사용자 검색: ${originalPhone}`);
+        q = query(usersRef, where('phoneNumber', '==', originalPhone));
+        querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          foundPhoneFormat = '원본 형식';
+        } else {
+          // 4. 사용자 ID로 검색 (전화번호에서 하이픈 제거한 형태)
+          console.log(`[Auth API] ID로 사용자 검색: ${phoneWithoutHyphens}`);
+          const userDocSnapshot = await getDocs(query(usersRef, where('uid', '==', phoneWithoutHyphens)));
+          
+          if (!userDocSnapshot.empty) {
+            querySnapshot = userDocSnapshot;
+            foundPhoneFormat = '사용자 ID 형식';
+          }
+        }
+      }
+    }
     
     if (querySnapshot.empty) {
-      console.log(`[Auth API] 사용자 없음: ${phoneNumber}`);
+      console.log(`[Auth API] 사용자 없음: ${phoneNumber} (모든 형식 검색 실패)`);
+      
+      // 디버그: 모든 사용자 출력
+      if (process.env.NODE_ENV === 'development') {
+        try {
+          const allUsersSnapshot = await getDocs(usersRef);
+          console.log(`[Auth API] 전체 사용자 목록 (${allUsersSnapshot.size}명):`);
+          allUsersSnapshot.forEach(doc => {
+            const user = doc.data();
+            console.log(`- ID: ${user.uid}, 전화번호: ${user.phoneNumber}, 이름: ${user.name}`);
+          });
+        } catch (listErr) {
+          console.error('[Auth API] 전체 사용자 조회 오류:', listErr);
+        }
+      }
+      
       return NextResponse.json(
         { success: false, message: '등록되지 않은 전화번호입니다.' },
         { status: 401 }
@@ -99,6 +168,8 @@ export async function POST(req: NextRequest) {
     const userDoc = querySnapshot.docs[0];
     const userData = userDoc.data();
     
+    console.log(`[Auth API] 사용자 발견 (${foundPhoneFormat}): ${userData.name}, 전화번호: ${userData.phoneNumber}, ID: ${userData.uid || userDoc.id}`);
+    
     // 비밀번호 확인 - 개발 환경에서는 직접 비교, 프로덕션에서는 bcrypt 사용
     let passwordMatches = false;
     
@@ -107,16 +178,16 @@ export async function POST(req: NextRequest) {
         // 개발 환경에서도 bcrypt 비교 시도
         if (userData.passwordHash) {
           // 해시된 비밀번호가 있으면 이를 사용
-          passwordMatches = await bcrypt.compare(password, userData.passwordHash);
+          passwordMatches = await bcrypt.compare(passwordInput, userData.passwordHash);
           console.log(`[Auth API] 개발 환경 해시 비밀번호 확인: ${passwordMatches ? '일치' : '불일치'}`);
         } else if (userData.password) {
           // 이전 방식 지원 (평문 비밀번호)
-          passwordMatches = userData.password === password || password === '123456';
+          passwordMatches = userData.password === passwordInput || passwordInput === '123456';
           console.log(`[Auth API] 개발 환경 레거시 비밀번호 확인: ${passwordMatches ? '일치' : '불일치'}`);
           
           // 레거시 비밀번호 방식 감지 시, 해시 처리로 업그레이드 시도 (다음 로그인부터 사용)
           try {
-            const passwordHash = await bcrypt.hash(password, 10);
+            const passwordHash = await bcrypt.hash(passwordInput, 10);
             const userRef = doc(db, 'users', userDoc.id);
             await updateDoc(userRef, { 
               passwordHash,
@@ -130,15 +201,15 @@ export async function POST(req: NextRequest) {
       } else {
         // 프로덕션 환경에서는 항상 bcrypt 사용
         if (userData.passwordHash) {
-          passwordMatches = await bcrypt.compare(password, userData.passwordHash);
+          passwordMatches = await bcrypt.compare(passwordInput, userData.passwordHash);
         } else if (userData.password) {
           // 레거시 방식 지원 (프로덕션에서도 일시적으로)
           console.warn('[Auth API] 프로덕션에서 해시되지 않은 비밀번호 감지. 해시 처리 필요');
-          passwordMatches = userData.password === password;
+          passwordMatches = userData.password === passwordInput;
           
           // 프로덕션에서 레거시 비밀번호 감지 시, 즉시 해시 처리로 업그레이드
           try {
-            const passwordHash = await bcrypt.hash(password, 10);
+            const passwordHash = await bcrypt.hash(passwordInput, 10);
             const userRef = doc(db, 'users', userDoc.id);
             await updateDoc(userRef, { 
               passwordHash,
@@ -165,7 +236,7 @@ export async function POST(req: NextRequest) {
       console.error('[Auth API] 비밀번호 확인 중 오류:', error);
       
       // 개발 환경에서는 테스트 비밀번호로 로그인 허용 (비상 시에만)
-      if (process.env.NODE_ENV === 'development' && password === '123456') {
+      if (process.env.NODE_ENV === 'development' && passwordInput === '123456') {
         console.log(`[Auth API] 개발 환경 비상 로그인 허용: ${phoneNumber}`);
         passwordMatches = true;
       } else {
@@ -178,14 +249,14 @@ export async function POST(req: NextRequest) {
     
     // 사용자 정보 준비
     const user: User = {
-      id: userDoc.id,
+      id: userData.uid || userDoc.id,
       name: userData.name,
       phoneNumber: userData.phoneNumber,
       email: userData.email || '',
       createdAt: userData.createdAt
     };
     
-    console.log(`[Auth API] 로그인 성공: ${user.name} (${user.id})`);
+    console.log(`[Auth API] 로그인 성공: ${user.name} (${user.phoneNumber})`);
     
     // JWT 토큰 생성
     const token = await createSession(user);

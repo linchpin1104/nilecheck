@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       }
       
       // Check if the verification has expired
-      const expirationTime = 10 * 60 * 1000; // 10 minutes in milliseconds
+      const expirationTime = 5 * 60 * 1000; // 5 minutes in milliseconds
       if (Date.now() - verificationRecord.timestamp > expirationTime) {
         // Clean up the expired cookie
         cookieStore.delete(`verify_${requestId}`);
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
         ).toString();
         
         cookieStore.set(`verify_${requestId}`, encryptedData, { 
-          maxAge: 10 * 60, // 10 minutes
+          maxAge: 5 * 60, // 5 minutes
           httpOnly: true,
           path: '/'
         });

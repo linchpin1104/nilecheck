@@ -54,6 +54,8 @@ export default function useAuth() {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       
+      console.log('[useAuth] 세션 정보 요청 시작');
+      
       // Check if we have valid cached data and not forcing a refresh
       const now = Date.now();
       if (!forceRefresh && 
@@ -63,128 +65,144 @@ export default function useAuth() {
         console.log('[useAuth] 캐시된 세션 데이터 사용');
         
         // sessionStore와 동기화
-        if (sessionCache.data.user?.id) {
+        if (sessionCache.data && sessionCache.data.user?.id) {
+          console.log('[useAuth] 캐시된 세션으로 sessionStore 업데이트:', {
+            userId: sessionCache.data.user.id,
+            isAuthenticated: sessionCache.data.isAuthenticated
+          });
           sessionStore.updateUserId(sessionCache.data.user.id);
           sessionStore.isAuthenticated = sessionCache.data.isAuthenticated;
-          console.log('[useAuth DEBUG] sessionStore 동기화 (캐시된 데이터):', {
-            userId: sessionStore.userId,
-            isAuthenticated: sessionStore.isAuthenticated
-          });
         }
         
-        setState({
-          user: sessionCache.data.user,
-          isAuthenticated: sessionCache.data.isAuthenticated,
+        setState(prev => ({ 
+          ...prev, 
           isLoading: false,
-          error: null
-        });
+          isAuthenticated: sessionCache.data?.isAuthenticated || false,
+          user: sessionCache.data?.user || null
+        }));
         return;
       }
       
-      // Proceed with API call if no cache or cache expired
-      console.log('[useAuth] 새로운 세션 정보 요청');
+      console.log('[useAuth] 서버에서 세션 정보 요청');
+      
+      // 쿠키가 있는지 확인 (클라이언트에서 빠르게 확인)
+      const hasCookie = document.cookie.includes('nile-check-auth=');
+      if (!hasCookie) {
+        console.log('[useAuth] 인증 쿠키가 없음 - 로그인되지 않은 상태');
+        setState(prev => ({ 
+          ...prev, 
+          isLoading: false,
+          isAuthenticated: false,
+          user: null
+        }));
+        
+        // sessionStore 업데이트
+        sessionStore.updateUserId(null);
+        sessionStore.isAuthenticated = false;
+        
+        // 캐시 초기화
+        sessionCache.data = { isAuthenticated: false, user: null };
+        sessionCache.timestamp = now;
+        return;
+      }
+      
+      // API 요청하여 세션 정보 가져오기
       const response = await fetch('/api/auth/session', {
         method: 'GET',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        },
-        cache: 'no-store'
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
       });
       
       if (!response.ok) {
-        throw new Error(`Session API responded with status: ${response.status}`);
+        console.error(`[useAuth] 세션 요청 실패: ${response.status} ${response.statusText}`);
+        // API 오류 발생 시 상태 초기화 및 오류 설정
+        setState(prev => ({ 
+          ...prev, 
+          isLoading: false,
+          isAuthenticated: false,
+          user: null,
+          error: `세션 정보를 가져오는데 실패했습니다: ${response.status}`
+        }));
+        
+        // sessionStore도 초기화
+        sessionStore.updateUserId(null);
+        sessionStore.isAuthenticated = false;
+        
+        // 캐시 초기화
+        sessionCache.data = null;
+        sessionCache.timestamp = 0;
+        return;
       }
       
       const data = await response.json();
-      console.log('[useAuth DEBUG] 세션 API 응답:', data);
+      console.log('[useAuth] 세션 응답 받음:', {
+        success: data.success,
+        hasUser: !!data.user,
+        userId: data.user?.id
+      });
       
-      if (data.success && data.authenticated) {
-        // 국제 전화번호 형식 처리 (+82xxxx -> 0xxxx)
-        if (data.user && data.user.phoneNumber && data.user.phoneNumber.startsWith('+82')) {
-          data.user.phoneNumber = data.user.phoneNumber.replace(/^\+82/, '0');
-          console.log('[useAuth DEBUG] 전화번호 형식 변환:', data.user.phoneNumber);
-        }
-        
-        // Update cache
-        sessionCache = {
-          data: {
-            user: data.user,
-            isAuthenticated: true
-          },
-          timestamp: now
-        };
-        
-        // sessionStore와 동기화
-        if (data.user?.id) {
-          sessionStore.updateUserId(data.user.id);
-          sessionStore.isAuthenticated = true;
-          console.log('[useAuth DEBUG] sessionStore 동기화 (로그인):', {
-            userId: sessionStore.userId,
-            isAuthenticated: sessionStore.isAuthenticated,
-            userName: data.user.name,
-            phoneNumber: data.user.phoneNumber
-          });
-          
-          // 로컬 스토리지에도 마지막 사용자 ID 저장
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('last_user_id', data.user.id);
-            console.log('[useAuth DEBUG] 로컬 스토리지에 마지막 사용자 ID 저장:', data.user.id);
-          }
-        }
-        
-        console.log('[useAuth] 세션 정보 업데이트:', { 
-          userId: data.user.id, 
-          name: data.user.name, 
-          phone: data.user.phoneNumber 
+      // 결과 설정
+      if (data.success && data.user) {
+        console.log('[useAuth] 로그인된 세션:', {
+          id: data.user.id,
+          name: data.user.name,
+          phoneNumber: data.user.phoneNumber
         });
         
-        setState({
-          user: data.user,
-          isAuthenticated: true,
-          isLoading: false,
-          error: null
-        });
-      } else {
-        // Update cache (not authenticated)
-        sessionCache = {
-          data: {
-            user: null,
-            isAuthenticated: false
-          },
-          timestamp: now
-        };
-        
-        // sessionStore와 동기화 - 인증 실패
-        console.log('[useAuth] 인증되지 않은 세션');
-        sessionStore.updateUserId(null);
-        sessionStore.isAuthenticated = false;
-        console.log('[useAuth DEBUG] sessionStore 동기화 (로그아웃):', {
+        // sessionStore 업데이트
+        sessionStore.updateUserId(data.user.id);
+        sessionStore.isAuthenticated = true;
+        console.log('[useAuth] sessionStore 업데이트:', {
           userId: sessionStore.userId,
           isAuthenticated: sessionStore.isAuthenticated
         });
         
-        // 로컬 스토리지의 마지막 사용자 ID 삭제
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('last_user_id');
-          console.log('[useAuth DEBUG] 로컬 스토리지에서 마지막 사용자 ID 삭제');
+        // 국제 형식 전화번호 처리 (UI 표시용)
+        if (data.user.phoneNumber?.startsWith('+82')) {
+          console.log('[useAuth] 국제 형식 전화번호 변환:', data.user.phoneNumber);
+          data.user.phoneNumber = '0' + data.user.phoneNumber.substring(3);
         }
         
-        setState({
-          user: null,
-          isAuthenticated: false,
+        setState(prev => ({ 
+          ...prev, 
           isLoading: false,
-          error: null
-        });
+          isAuthenticated: true,
+          user: data.user
+        }));
+        
+        // 캐시 업데이트
+        sessionCache.data = { isAuthenticated: true, user: data.user };
+        sessionCache.timestamp = now;
+      } else {
+        console.log('[useAuth] 로그인되지 않은 세션');
+        setState(prev => ({ 
+          ...prev, 
+          isLoading: false,
+          isAuthenticated: false,
+          user: null
+        }));
+        
+        // sessionStore 초기화
+        sessionStore.updateUserId(null);
+        sessionStore.isAuthenticated = false;
+        
+        // 캐시 업데이트
+        sessionCache.data = { isAuthenticated: false, user: null };
+        sessionCache.timestamp = now;
       }
     } catch (error) {
-      console.error('Error fetching session:', error);
-      setState({
-        user: null,
-        isAuthenticated: false,
+      console.error('[useAuth] 세션 정보 요청 오류:', error);
+      
+      // 에러 발생 시 상태 업데이트
+      setState(prev => ({ 
+        ...prev, 
         isLoading: false,
-        error: '세션 정보를 가져오는 중 오류가 발생했습니다.'
-      });
+        error: error instanceof Error ? error.message : '세션 정보를 가져오는데 실패했습니다.'
+      }));
+      
+      // 캐시 초기화
+      sessionCache.data = null;
+      sessionCache.timestamp = 0;
     }
   }, []);
   
