@@ -17,8 +17,9 @@ export default function AppLayout({
   const { user, isAuthenticated, logout } = useSession();
   
   const navigation = [
-    { name: '주간리포트', href: '/solutions' },
+    { name: '대시보드', href: '/dashboard' },
     { name: '활동 기록', href: '/log-activity' },
+    { name: '주간리포트', href: '/solutions' },
     { name: '내 정보', href: '/mypage' },
   ];
   
@@ -79,27 +80,24 @@ export default function AppLayout({
             )}
           </div>
           
-          <div className="md:hidden">
+          <div className="md:hidden flex items-center">
             <button 
               onClick={toggleMenu}
-              className="p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              aria-expanded={mobileMenuOpen}
-              aria-label="메뉴 열기"
+              className="ml-3 text-gray-600"
             >
               {mobileMenuOpen ? (
                 <X className="h-6 w-6" />
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="3" y1="12" x2="21" y2="12"></line>
-                  <line x1="3" y1="6" x2="21" y2="6"></line>
-                  <line x1="3" y1="18" x2="21" y2="18"></line>
-                </svg>
+                <div className="flex flex-col space-y-1">
+                  <div className="h-0.5 w-6 bg-gray-600"></div>
+                  <div className="h-0.5 w-6 bg-gray-600"></div>
+                  <div className="h-0.5 w-6 bg-gray-600"></div>
+                </div>
               )}
             </button>
           </div>
         </nav>
         
-        {/* Mobile menu */}
         {mobileMenuOpen && (
           <div className="md:hidden">
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t bg-white shadow-lg">
@@ -149,13 +147,13 @@ export default function AppLayout({
         )}
       </header>
       
-      <main className="flex-1 bg-slate-50">
+      <main className="flex-1">
         {children}
       </main>
       
-      <footer className="bg-white border-t py-6">
+      <footer className="py-6 border-t mt-8">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>© 2024 더나일체크. All rights reserved.</p>
+          <p>© 2024 더나일체크 (NileCheck). All rights reserved.</p>
         </div>
       </footer>
     </div>

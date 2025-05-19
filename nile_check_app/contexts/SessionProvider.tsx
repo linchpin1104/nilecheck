@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useState, useEffect, ReactNode, useContext } from "react";
+import { createContext, useState, useEffect, ReactNode, useContext, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { User } from "@/lib/auth-server";
 
@@ -22,13 +22,28 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [sessionChecked, setSessionChecked] = useState<boolean>(false);
+  
+  // 이전 인증 상태를 저장하는 ref
+  const prevAuthState = useRef<boolean | null>(null);
+  
+  // 마지막 세션 체크 시간 추적
+  const lastSessionCheckTime = useRef<number>(0);
 
   const router = useRouter();
   const pathname = usePathname();
 
   // 세션 체크 함수
   const checkSession = async () => {
+    // 세션 체크 호출 중복 방지
+    const now = Date.now();
+    if (now - lastSessionCheckTime.current < 2000) {
+      console.log("[SessionProvider] 세션 체크 요청이 너무 빈번합니다. 무시합니다.");
+      return prevAuthState.current ?? false;
+    }
+    
+    lastSessionCheckTime.current = now;
     setIsLoading(true);
+    
     try {
       console.log("[SessionProvider] 세션 상태 확인 중...");
       const response = await fetch("/api/auth/session", {
@@ -52,6 +67,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setUser(data.user);
         setSessionChecked(true);
         setIsLoading(false);
+        prevAuthState.current = true;
         return true;
       } else {
         console.log("[SessionProvider] 인증되지 않은 세션");
@@ -59,6 +75,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setSessionChecked(true);
         setIsLoading(false);
+        prevAuthState.current = false;
         return false;
       }
     } catch (error) {
@@ -67,6 +84,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setSessionChecked(true);
       setIsLoading(false);
+      prevAuthState.current = false;
       return false;
     }
   };
@@ -80,62 +98,34 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   // 페이지 변경 시 세션 재검사 (미들웨어 헤더 확인)
   useEffect(() => {
-    // 미들웨어에서 설정한 인증 헤더 확인
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const checkAuthHeaders = async () => {
-      try {
-        // 현재 경로가 없으면 무시
-        if (!pathname) {
-          console.log('[SessionProvider] 경로 정보가 없어 헤더 검사 생략');
-          return;
-        }
-        
-        // 현재 경로에 대한 HEAD 요청을 보내 헤더 확인
-        const response = await fetch(pathname, {
-          method: 'HEAD',
-          headers: { 'x-check-auth': '1' }
-        });
-        
-        const authStatus = response.headers.get('x-auth-status');
-        const userId = response.headers.get('x-user-id');
-        
-        console.log(`[SessionProvider] 경로 ${pathname}의 인증 상태: ${authStatus}, 사용자: ${userId || 'none'}`);
-        
-        // 헤더와 현재 상태가 불일치하면 세션 재검사
-        if ((authStatus === 'authenticated' && !isAuthenticated) || 
-            (authStatus === 'unauthenticated' && isAuthenticated)) {
-          console.log('[SessionProvider] 인증 상태 불일치, 세션 재확인');
-          checkSession();
-        }
-      } catch (error) {
-        console.error('[SessionProvider] 인증 헤더 확인 중 오류:', error);
-      }
-    };
-    
     // 쿠키가 있는데 인증 상태가 아니면 세션 확인
     const checkAuthCookie = () => {
       const hasCookie = document.cookie.includes('nile-check-auth=');
-      if (hasCookie && !isAuthenticated) {
-        console.log('[SessionProvider] 인증 쿠키 발견, 세션 재확인');
-        checkSession();
-      } else if (!hasCookie && isAuthenticated) {
-        console.log('[SessionProvider] 인증 쿠키 없음, 로그아웃 처리');
-        setIsAuthenticated(false);
-        setUser(null);
+      
+      // 인증 상태와 쿠키 상태가 일치하지 않을 때만 세션을 확인
+      if ((hasCookie && !isAuthenticated) || (!hasCookie && isAuthenticated)) {
+        if (hasCookie && !isAuthenticated) {
+          console.log('[SessionProvider] 인증 쿠키 발견, 세션 재확인');
+          checkSession();
+        } else if (!hasCookie && isAuthenticated) {
+          console.log('[SessionProvider] 인증 쿠키 없음, 로그아웃 처리');
+          setIsAuthenticated(false);
+          setUser(null);
+        }
       }
     };
     
-    // 페이지 변경시에만 수행
-    if (sessionChecked) {
+    // 페이지 변경시에만 수행하고, 세션이 확인된 상태일 때만 실행
+    if (sessionChecked && pathname) {
       checkAuthCookie();
-      // checkAuthHeaders(); // HEAD 요청 방식은 일단 비활성화
     }
-  }, [pathname, sessionChecked, isAuthenticated]);
+  }, [pathname, sessionChecked]);  // isAuthenticated 의존성 제거
 
   // 로그인 함수
   const login = (userData: User) => {
     setUser(userData);
     setIsAuthenticated(true);
+    prevAuthState.current = true;
   };
 
   // 로그아웃 함수
@@ -146,6 +136,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       .then(() => {
         setUser(null);
         setIsAuthenticated(false);
+        prevAuthState.current = false;
         router.push("/login");
       })
       .catch((error) => {
