@@ -4,7 +4,7 @@ import { jwtVerify } from 'jose';
 
 interface UserPayload {
   id: string;
-  [key: string]: any;
+  [key: string]: string | number | boolean | null | undefined;
 }
 
 // JWT 시크릿 키

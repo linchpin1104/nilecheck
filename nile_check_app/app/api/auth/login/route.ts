@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSession, User, setAuthCookie } from '@/lib/auth-server';
 import { connectToFirestore } from '@/lib/firebase/server';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { compare } from 'bcrypt';
+import bcrypt from 'bcrypt';
 
 // 테스트 모드에서 사용할 계정
 const TEST_ACCOUNTS = [
@@ -56,6 +56,15 @@ export async function POST(req: NextRequest) {
     
     // Firestore에서 사용자 검색
     const db = await connectToFirestore();
+    
+    if (!db) {
+      console.error('[Auth API] Firestore 연결 실패');
+      return NextResponse.json(
+        { success: false, message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' },
+        { status: 500 }
+      );
+    }
+    
     const usersRef = collection(db, 'users');
     const q = query(usersRef, where('phoneNumber', '==', phoneNumber));
     const querySnapshot = await getDocs(q);
@@ -72,9 +81,24 @@ export async function POST(req: NextRequest) {
     const userDoc = querySnapshot.docs[0];
     const userData = userDoc.data();
     
-    // 비밀번호 확인
+    // 비밀번호 확인 - 개발 환경에서는 직접 비교, 프로덕션에서는 bcrypt 사용
+    let passwordMatches = false;
+    
     try {
-      const passwordMatches = await compare(password, userData.passwordHash);
+      if (process.env.NODE_ENV === 'development') {
+        // 개발 환경에서는 단순 비교
+        passwordMatches = userData.password === password || password === '123456';
+        console.log(`[Auth API] 개발 환경 비밀번호 확인: ${passwordMatches ? '일치' : '불일치'}`);
+      } else {
+        // 프로덕션 환경에서는 bcrypt 사용 시도
+        try {
+          passwordMatches = await bcrypt.compare(password, userData.passwordHash);
+        } catch (bcryptErr) {
+          console.error('[Auth API] bcrypt 로드 오류:', bcryptErr);
+          // 비밀번호 직접 비교로 폴백
+          passwordMatches = userData.password === password;
+        }
+      }
       
       if (!passwordMatches) {
         console.log(`[Auth API] 비밀번호 불일치: ${phoneNumber}`);
@@ -86,9 +110,10 @@ export async function POST(req: NextRequest) {
     } catch (error) {
       console.error('[Auth API] 비밀번호 확인 중 오류:', error);
       
-      // 개발 환경에서는 비밀번호 검증 실패 시 직접 비교 (bcrypt가 지원되지 않을 경우)
+      // 개발 환경에서는 테스트 비밀번호로 로그인 허용
       if (process.env.NODE_ENV === 'development' && password === '123456') {
         console.log(`[Auth API] 개발 환경 직접 비밀번호 일치: ${phoneNumber}`);
+        passwordMatches = true;
       } else {
         return NextResponse.json(
           { success: false, message: '로그인 처리 중 오류가 발생했습니다.' },
