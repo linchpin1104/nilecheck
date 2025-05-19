@@ -4,6 +4,7 @@ import { AES, enc } from 'crypto-js';
 import { formatPhoneNumber } from '@/lib/verification/phone-utils';
 import { createVerificationRequest, updateVerificationRequest } from '@/lib/firebase/db-service';
 import { mockVerificationStore } from '@/lib/verification/store';
+import { Timestamp } from 'firebase/firestore';
 
 export async function POST(req: NextRequest) {
   try {
@@ -109,7 +110,7 @@ export async function POST(req: NextRequest) {
           phoneNumber: formattedInput,
           code: code,
           requestId: firestoreRequestId,
-          createdAt: new Date(),
+          createdAt: Timestamp.fromDate(new Date()),
           verified: true,
           attempts: verificationRecord.attempts
         };
