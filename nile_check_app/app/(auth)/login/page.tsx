@@ -11,6 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { AlertCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { CountrySelector } from "@/components/ui/country-selector";
+import { validatePhoneNumber, formatPhoneNumber } from "@/lib/verification/phone-service";
 
 // 서버 컴포넌트가 이 페이지를 정적 생성하지 않도록 지정
 export const dynamic = 'force-dynamic';
@@ -21,6 +23,7 @@ function LoginForm() {
   const { isLoading } = useAuthStore();
   
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [countryCode, setCountryCode] = useState("KR");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -43,7 +46,7 @@ function LoginForm() {
     setError(null);
     
     // Validate phone number
-    if (!isValidKoreanPhoneNumber(phoneNumber)) {
+    if (!validatePhoneNumber(phoneNumber, countryCode)) {
       setError("유효한 전화번호를 입력해주세요.");
       return;
     }
@@ -57,7 +60,9 @@ function LoginForm() {
     setIsSubmitting(true);
     
     try {
-      console.log("로그인 시도:", { phoneNumber, password });
+      // 전화번호를 E.164 형식으로 변환 (서버에서 처리할 수 있게)
+      const formattedPhoneNumber = formatPhoneNumber(phoneNumber, countryCode);
+      console.log("로그인 시도:", { formattedPhoneNumber, password });
       
       // 서버 API 직접 호출
       const response = await fetch('/api/auth/login', {
@@ -65,7 +70,7 @@ function LoginForm() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ phoneNumber, password }),
+        body: JSON.stringify({ phoneNumber: formattedPhoneNumber, password }),
       });
       
       const result = await response.json();
@@ -97,19 +102,17 @@ function LoginForm() {
     }
   };
   
+  // 국가 코드 변경 핸들러
+  const handleCountryChange = (code: string) => {
+    setCountryCode(code);
+    // 국가 코드가 변경되면 전화번호 유효성 재검사
+    // setPhoneNumber(""); // 국가가 변경되면 번호를 초기화할지 여부를 결정
+  };
+  
   const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Only allow digits and hyphens
     const value = e.target.value.replace(/[^\d-]/g, '');
-    
-    // Automatic formatting: XXX-XXXX-XXXX
-    let formatted = value.replace(/-/g, '');
-    if (formatted.length > 3 && formatted.length <= 7) {
-      formatted = `${formatted.slice(0, 3)}-${formatted.slice(3)}`;
-    } else if (formatted.length > 7) {
-      formatted = `${formatted.slice(0, 3)}-${formatted.slice(3, 7)}-${formatted.slice(7, 11)}`;
-    }
-    
-    setPhoneNumber(formatted);
+    setPhoneNumber(value);
   };
   
   return (
@@ -130,16 +133,26 @@ function LoginForm() {
           
           <div className="space-y-2">
             <Label htmlFor="phoneNumber">전화번호</Label>
-            <Input
-              id="phoneNumber"
-              type="tel"
-              placeholder="010-0000-0000"
-              value={phoneNumber}
-              onChange={handlePhoneNumberChange}
-              required
-              autoComplete="tel"
-              className="bg-white"
-            />
+            <div className="flex gap-2">
+              <div className="w-32">
+                <CountrySelector
+                  value={countryCode}
+                  onChange={handleCountryChange}
+                />
+              </div>
+              <div className="flex-1">
+                <Input
+                  id="phoneNumber"
+                  type="tel"
+                  placeholder={countryCode === "KR" ? "010-0000-0000" : "Phone number"}
+                  value={phoneNumber}
+                  onChange={handlePhoneNumberChange}
+                  required
+                  autoComplete="tel"
+                  className="bg-white w-full"
+                />
+              </div>
+            </div>
           </div>
           
           <div className="space-y-2">
