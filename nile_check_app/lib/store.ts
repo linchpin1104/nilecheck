@@ -284,36 +284,22 @@ export const useAppStore = create<AppState>()(
           // 로딩 상태 즉시 활성화하여 UI에 표시
           set({ isLoading: true });
           
-          // 중복 요청 방지 로직은 제거하여 언제나 최신 데이터를 가져오도록 함
+          // 현재 시간 기록
           const now = Date.now();
           
-          // 세션 상태 확인
-          try {
-            const sessionResponse = await fetch('/api/auth/session', {
-              headers: {
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0'
-              }
-            });
-            
-            const sessionData = await sessionResponse.json();
-            set({ lastSessionCheckTime: now });
-            
-            if (!sessionData.authenticated) {
-              console.log('[Store] 인증된 세션이 없습니다. 로컬 데이터만 사용합니다.');
-              set({ isLoading: false });
-              return false;
-            }
-            
-            console.log('[Store] 인증된 세션 확인됨, 데이터 가져오기 진행');
-          } catch (error) {
-            console.warn('[Store] 세션 상태 확인 중 오류, 계속 진행합니다:', error);
-          }
+          // 세션 확인 요청은 생략하고 데이터 로드에 집중
+          // 세션 상태는 미들웨어에서 자동 처리됨
+          console.log('[Store] 데이터 로드 진행 중');
+          
+          let fetchSuccess = false;
           
           // 식사 데이터 가져오기
           try {
-            const mealsResponse = await fetch(`/api/meals?uid=${userId}`);
+            const mealsResponse = await fetch(`/api/meals?uid=${userId}`, {
+              headers: {
+                'Cache-Control': 'no-cache',
+              }
+            });
             if (!mealsResponse.ok) {
               throw new Error(`식사 데이터 API 오류: ${mealsResponse.status}`);
             }
@@ -321,6 +307,7 @@ export const useAppStore = create<AppState>()(
             if (mealsData && Array.isArray(mealsData.meals)) {
               console.log(`[Store] 식사 데이터 ${mealsData.meals.length}건 로드됨`);
               set({ meals: mealsData.meals });
+              fetchSuccess = true;
             }
           } catch (error) {
             console.error('[Store] 식사 데이터 로드 중 오류:', error);
@@ -329,7 +316,11 @@ export const useAppStore = create<AppState>()(
           
           // 수면 데이터 가져오기
           try {
-            const sleepResponse = await fetch(`/api/sleep?uid=${userId}`);
+            const sleepResponse = await fetch(`/api/sleep?uid=${userId}`, {
+              headers: {
+                'Cache-Control': 'no-cache',
+              }
+            });
             if (!sleepResponse.ok) {
               throw new Error(`수면 데이터 API 오류: ${sleepResponse.status}`);
             }
@@ -337,6 +328,7 @@ export const useAppStore = create<AppState>()(
             if (sleepData && Array.isArray(sleepData.sleep)) {
               console.log(`[Store] 수면 데이터 ${sleepData.sleep.length}건 로드됨`);
               set({ sleep: sleepData.sleep });
+              fetchSuccess = true;
             }
           } catch (error) {
             console.error('[Store] 수면 데이터 로드 중 오류:', error);
@@ -345,7 +337,11 @@ export const useAppStore = create<AppState>()(
           
           // 체크인 데이터 가져오기
           try {
-            const checkinsResponse = await fetch(`/api/checkins?uid=${userId}`);
+            const checkinsResponse = await fetch(`/api/checkins?uid=${userId}`, {
+              headers: {
+                'Cache-Control': 'no-cache',
+              }
+            });
             if (!checkinsResponse.ok) {
               throw new Error(`체크인 데이터 API 오류: ${checkinsResponse.status}`);
             }
@@ -353,18 +349,29 @@ export const useAppStore = create<AppState>()(
             if (checkinsData && Array.isArray(checkinsData.checkins)) {
               console.log(`[Store] 체크인 데이터 ${checkinsData.checkins.length}건 로드됨`);
               set({ checkins: checkinsData.checkins });
+              fetchSuccess = true;
             }
           } catch (error) {
             console.error('[Store] 체크인 데이터 로드 중 오류:', error);
             // 개별 데이터 실패는 전체 동기화 실패로 간주하지 않음
           }
           
-          set({ isLoading: false, isInitialized: true, lastSyncTime: now });
-          console.log('[Store] 데이터 동기화 완료');
-          return true;
+          // 데이터 로드 완료 후, 저장소 상태 업데이트
+          set({ 
+            isLoading: false, 
+            isInitialized: true, 
+            lastSyncTime: now 
+          });
+          
+          console.log(`[Store] 데이터 동기화 완료: ${fetchSuccess ? '성공적으로 데이터 로드됨' : '일부 데이터 로드 실패'}`);
+          return fetchSuccess;
         } catch (error) {
           console.error('[Store] 데이터 동기화 중 오류 발생:', error);
-          set({ isLoading: false });
+          // 오류 발생했지만 앱이 계속 작동하도록 상태 업데이트
+          set({ 
+            isLoading: false,
+            isInitialized: true
+          });
           return false;
         }
       },

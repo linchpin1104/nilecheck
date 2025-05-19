@@ -22,6 +22,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [sessionChecked, setSessionChecked] = useState<boolean>(false);
+  const [sessionCheckFailed, setSessionCheckFailed] = useState<boolean>(false);
   
   // 이전 인증 상태를 저장하는 ref
   const prevAuthState = useRef<boolean | null>(null);
@@ -36,7 +37,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const checkSession = async () => {
     // 세션 체크 호출 중복 방지
     const now = Date.now();
-    if (now - lastSessionCheckTime.current < 2000) {
+    if (now - lastSessionCheckTime.current < 3000) { // 3초 디바운스
       console.log("[SessionProvider] 세션 체크 요청이 너무 빈번합니다. 무시합니다.");
       return prevAuthState.current ?? false;
     }
@@ -46,14 +47,36 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     
     try {
       console.log("[SessionProvider] 세션 상태 확인 중...");
+      
+      // 쿠키 상태 먼저 확인
+      const hasCookie = document.cookie.includes('nile-check-auth=');
+      
+      // 쿠키가 없으면 인증 안된 상태로 빠르게 리턴
+      if (!hasCookie) {
+        console.log("[SessionProvider] 인증 쿠키가 없습니다.");
+        setIsAuthenticated(false);
+        setUser(null);
+        setSessionChecked(true);
+        setIsLoading(false);
+        prevAuthState.current = false;
+        return false;
+      }
+      
+      // 쿠키가 있으면 서버에 세션 확인
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5초 타임아웃
+      
       const response = await fetch("/api/auth/session", {
         method: 'GET',
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache'
         },
-        cache: 'no-store'
+        cache: 'no-store',
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
       
       if (!response.ok) {
         throw new Error(`Session API 응답 오류: ${response.status}`);
@@ -66,6 +89,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setIsAuthenticated(true);
         setUser(data.user);
         setSessionChecked(true);
+        setSessionCheckFailed(false);
         setIsLoading(false);
         prevAuthState.current = true;
         return true;
@@ -74,18 +98,25 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setIsAuthenticated(false);
         setUser(null);
         setSessionChecked(true);
+        setSessionCheckFailed(false);
         setIsLoading(false);
         prevAuthState.current = false;
         return false;
       }
     } catch (error) {
       console.error("[SessionProvider] 세션 확인 중 오류:", error);
-      setIsAuthenticated(false);
-      setUser(null);
-      setSessionChecked(true);
+      
+      // 세션 체크 실패 시 이전 상태 유지
+      setSessionCheckFailed(true);
       setIsLoading(false);
-      prevAuthState.current = false;
-      return false;
+      
+      // 이전 상태가 없으면 인증되지 않은 것으로 처리
+      if (prevAuthState.current === null) {
+        setIsAuthenticated(false);
+        setUser(null);
+      }
+      
+      return prevAuthState.current ?? false;
     }
   };
 

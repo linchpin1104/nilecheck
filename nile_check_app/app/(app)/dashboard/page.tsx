@@ -338,29 +338,33 @@ export default function DashboardPage() {
 
   // 라우트 변경 시 자동 데이터 동기화
   useEffect(() => {
-    // 이미 동기화 중이면 중복 호출 방지
-    if (isLoading || isRefreshing) {
-      console.log('이미 데이터 동기화 중, 중복 요청 방지');
+    // 이미 데이터가 있으면 중복 동기화 방지
+    if (isInitialized && hasData) {
+      console.log('대시보드 - 이미 데이터가 있어 동기화 생략');
       return;
     }
     
-    // 강제 데이터 동기화 수행 (로그인 직후 항상 데이터를 새로 불러오도록)
+    // 이미 동기화 중이면 중복 호출 방지
+    if (isLoading || isRefreshing) {
+      console.log('대시보드 - 이미 데이터 동기화 중, 중복 요청 방지');
+      return;
+    }
+    
+    // 데이터 동기화 수행
     console.log('대시보드 페이지 로드 - 데이터 동기화 시작');
     setIsRefreshing(true);
     
     // syncData 호출 시 항상 사용자 기본값 전달
     syncData('user_default')
-      .then(() => {
-        console.log('대시보드 데이터 동기화 완료');
+      .then((success) => {
+        console.log(`대시보드 데이터 동기화 ${success ? '성공' : '일부 실패'}`);
         setIsRefreshing(false);
       })
       .catch(err => {
         console.error('대시보드 데이터 동기화 실패:', err);
         setIsRefreshing(false);
       });
-      
-    // 의존성 배열에서 isInitialized 제거하여 항상 새로 데이터 불러오게 함
-  }, [pathname, isLoading, isRefreshing, syncData]);
+  }, [isInitialized, hasData, pathname, isLoading, isRefreshing, syncData]);
 
   // suggestions가 zustand store에 있으면 항상 그 값을 보여주고, 없을 때만 생성 버튼 노출
   useEffect(() => {

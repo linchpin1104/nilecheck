@@ -19,7 +19,6 @@ export default function AppLayout({
   const navigation = [
     { name: '대시보드', href: '/dashboard' },
     { name: '활동 기록', href: '/log-activity' },
-    { name: '주간리포트', href: '/solutions' },
     { name: '내 정보', href: '/mypage' },
   ];
   
