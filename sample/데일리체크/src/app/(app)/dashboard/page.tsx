@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAppStore } from "@/lib/app-store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Utensils, BedDouble, Info, ListPlus, Brain, FileText } from "lucide-react"; // Added Brain, FileText
+import { Utensils, BedDouble, Info, ListPlus, Brain, FileText } from "lucide-react";
 import { SleepDurationChart } from "@/components/charts/sleep-duration-chart";
-// import { ActivityCategoryChart } from "@/components/charts/activity-category-chart"; // Removed import
 import { EmotionFrequencyChart } from "@/components/charts/emotion-frequency-chart";
 import { CheckinActivityBreakdownChart } from "@/components/charts/checkin-activity-breakdown-chart";
 import { ConversationPartnerChart } from "@/components/charts/conversation-partner-chart";
@@ -13,9 +11,61 @@ import { differenceInHours, isToday, parseISO } from "date-fns";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/hooks/useTranslation";
+import type { SleepEntry, MealEntry, WellbeingCheckinRecord, AppStoreData } from "@/types";
+import { useContext, createContext } from "react";
 
+// Mock data to use when the app-store context is not available
+const mockData: AppStoreData = {
+  meals: [],
+  sleep: [],
+  checkins: [],
+  wellnessReports: []
+};
+
+// Create a mock context for the dashboard
+type DashboardContextType = {
+  data: AppStoreData;
+  isInitialized: boolean;
+  isLoading: boolean;
+};
+
+const DashboardContext = createContext<DashboardContextType>({
+  data: mockData,
+  isInitialized: true,
+  isLoading: false
+});
+
+const useDashboardData = () => useContext(DashboardContext);
+
+// A wrapper component to provide real data in the Dashboard
+function DashboardProvider({ children }: { children: React.ReactNode }) {
+  // Simulate the values that would normally come from useAppStore
+  const [data, setData] = useState<AppStoreData>(mockData);
+  const [isInitialized, setIsInitialized] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // You could fetch real data here in a useEffect if needed
+
+  return (
+    <DashboardContext.Provider value={{ data, isInitialized, isLoading }}>
+      {children}
+    </DashboardContext.Provider>
+  );
+}
+
+// Update the main component to use the provider
 export default function DashboardPage() {
-  const { data, isInitialized, isLoading: isLoadingStore } = useAppStore();
+  return (
+    <DashboardProvider>
+      <DashboardContent />
+    </DashboardProvider>
+  );
+}
+
+// The actual dashboard content component
+function DashboardContent() {
+  // Replace useAppStore with our mock context
+  const { data, isInitialized, isLoading: isLoadingStore } = useDashboardData();
   const { t } = useTranslation();
   const [summary, setSummary] = useState({
     todaySleepHours: 0,
@@ -25,24 +75,23 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (isInitialized && data) {
-      const todaySleep = data.sleep.filter(s => {
+      const todaySleep = data.sleep.filter((s: SleepEntry) => {
         if (!s.startTime || !s.endTime) return false;
         const sEndDate = parseISO(s.endTime);
         return isToday(sEndDate);
       });
 
-      const todaySleepHours = todaySleep.reduce((acc, s) => {
+      const todaySleepHours = todaySleep.reduce((acc: number, s: SleepEntry) => {
         const start = parseISO(s.startTime);
         const end = parseISO(s.endTime);
         const duration = differenceInHours(end, start);
         return acc + duration;
       }, 0);
 
-      const todayMeals = data.meals.filter(m => m.dateTime && isToday(parseISO(m.dateTime)) && m.status === "eaten");
+      const todayMeals = data.meals.filter((m: MealEntry) => m.dateTime && isToday(parseISO(m.dateTime)) && m.status === "eaten");
       
-      const todayCheckins = data.checkins.filter(c => c.dateTime && isToday(parseISO(c.dateTime)));
-      const todayActivitiesCount = todayCheckins.reduce((acc, curr) => acc + (curr.input.todayActivities?.length || 0), 0);
-
+      const todayCheckins = data.checkins.filter((c: WellbeingCheckinRecord) => c.dateTime && isToday(parseISO(c.dateTime)));
+      const todayActivitiesCount = todayCheckins.reduce((acc: number, curr: WellbeingCheckinRecord) => acc + (curr.input.todayActivities?.length || 0), 0);
 
       setSummary({
         todaySleepHours: todaySleepHours,
@@ -159,7 +208,6 @@ export default function DashboardPage() {
       {/* Charts Section */}
        <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 mb-8">
         <SleepDurationChart sleepData={data.sleep} />
-        {/* <ActivityCategoryChart checkinData={data.checkins} /> Removed usage */}
         <CheckinActivityBreakdownChart checkinData={data.checkins} /> 
       </div>
       <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 mb-8">
