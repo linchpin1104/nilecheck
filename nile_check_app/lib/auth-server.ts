@@ -229,10 +229,22 @@ export function setAuthCookie(response: NextResponse, token: string) {
     value: token,
     httpOnly: true,
     path: '/',
-    secure: false, // 개발 환경에서도 작동하도록 false로 설정
+    secure: process.env.NODE_ENV === 'production',
     maxAge: 60 * 60 * 24 * 7, // 7일
-    sameSite: 'lax'
+    sameSite: 'lax',
+    domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined
   });
+  
+  // Set cookie in headers directly as well for maximum compatibility
+  const cookieHeader = `${TOKEN_COOKIE_NAME}=${token}; Path=/; Max-Age=${60 * 60 * 24 * 7}; HttpOnly; SameSite=Lax`;
+  
+  // Append to existing Set-Cookie headers if any
+  const existingCookies = response.headers.get('Set-Cookie');
+  if (existingCookies) {
+    response.headers.set('Set-Cookie', `${existingCookies}, ${cookieHeader}`);
+  } else {
+    response.headers.set('Set-Cookie', cookieHeader);
+  }
   
   return response;
 }

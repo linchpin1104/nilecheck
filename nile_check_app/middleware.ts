@@ -21,11 +21,13 @@ export async function middleware(request: NextRequest) {
                       path === '/debug-login' || 
                       path === '/test-auth' || 
                       path === '/direct-login' ||
-                      path.startsWith('/api/auth/') ||
-                      path.startsWith('/api/meals') ||  // API 엔드포인트 인증 제외 (테스트용)
-                      path.startsWith('/api/sleep') ||  // API 엔드포인트 인증 제외 (테스트용)
-                      path.startsWith('/api/checkins') ||  // API 엔드포인트 인증 제외 (테스트용)
-                      path.startsWith('/api/clear-test-data');  // 테스트 데이터 정리 API
+                      path.startsWith('/api/auth/');
+                      
+  // Define welcome paths that are always accessible but show login prompt
+  const isWelcomePath = path === '/' || 
+                      path === '/log-activity' || 
+                      path === '/dashboard' ||
+                      path === '/mypage';
   
   // Special handling for the home page - redirect to log-activity
   if (path === '/') {
@@ -34,6 +36,11 @@ export async function middleware(request: NextRequest) {
   
   // Allow access to public paths without authentication check
   if (isPublicPath) {
+    return NextResponse.next();
+  }
+  
+  // Allow access to API endpoints (handled by the API routes themselves)
+  if (path.startsWith('/api/')) {
     return NextResponse.next();
   }
   
@@ -49,6 +56,14 @@ export async function middleware(request: NextRequest) {
     } catch (error) {
       console.error('Invalid auth token:', error);
     }
+  }
+  
+  // Allow welcome paths to be accessible but with login prompt (handled by client components)
+  if (isWelcomePath) {
+    // Add authentication status to the response headers for client-side handling
+    const response = NextResponse.next();
+    response.headers.set('x-auth-status', isAuthenticated ? 'authenticated' : 'unauthenticated');
+    return response;
   }
   
   // If not authenticated and trying to access a protected route, redirect to login
@@ -67,6 +82,6 @@ export async function middleware(request: NextRequest) {
 // Specify which paths this middleware should run on
 export const config = {
   matcher: [
-    '/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.svg).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.svg).*)',
   ],
 }; 
