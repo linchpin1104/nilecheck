@@ -154,6 +154,36 @@ export async function POST(req: NextRequest) {
     if (querySnapshot.empty) {
       console.log(`[Auth API] 사용자 없음: ${phoneNumber} (모든 형식 검색 실패)`);
       
+      // 특별 케이스: 01052995980과 같은 형식이 +821052995980으로 저장된 경우 처리
+      if (phoneNumber.startsWith('010')) {
+        console.log(`[Auth API] 특별 케이스 확인: 국제 형식으로 저장된 번호 검색 시도`);
+        // 국제 형식으로 변환
+        const internationalFormat = '+82' + phoneNumber.substring(1).replace(/-/g, '');
+        console.log(`[Auth API] 국제 형식으로 변환: ${phoneNumber} -> ${internationalFormat}`);
+        
+        const intQuery = query(usersRef, where('phoneNumber', '==', internationalFormat));
+        const intQuerySnapshot = await getDocs(intQuery);
+        
+        if (!intQuerySnapshot.empty) {
+          console.log(`[Auth API] 국제 형식으로 사용자 발견`);
+          querySnapshot = intQuerySnapshot;
+          foundPhoneFormat = '국제 형식 (+82)';
+        } else {
+          // + 기호 없는 국제 형식 시도
+          const rawIntFormat = internationalFormat.substring(1); // +82 -> 82
+          console.log(`[Auth API] + 없는 국제 형식 시도: ${rawIntFormat}`);
+          
+          const rawIntQuery = query(usersRef, where('phoneNumber', '==', rawIntFormat));
+          const rawIntQuerySnapshot = await getDocs(rawIntQuery);
+          
+          if (!rawIntQuerySnapshot.empty) {
+            console.log(`[Auth API] + 없는 국제 형식으로 사용자 발견`);
+            querySnapshot = rawIntQuerySnapshot;
+            foundPhoneFormat = '국제 형식 (82)';
+          }
+        }
+      }
+      
       // 디버그: 모든 사용자 출력
       if (process.env.NODE_ENV === 'development') {
         try {

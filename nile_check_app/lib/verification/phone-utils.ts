@@ -43,6 +43,13 @@ export function formatPhoneNumber(phoneNumber: string, countryCode: string): str
     const numberWithoutLeadingZero = digitsOnly.startsWith('0') 
       ? digitsOnly.substring(1) 
       : digitsOnly;
+    
+    // 전화번호 형식이 이미 국제 형식인지 확인 (+82 또는 시작하는 경우)
+    if (digitsOnly.startsWith('82') && (digitsOnly.length === 11 || digitsOnly.length === 12)) {
+      // 이미 82로 시작하면 그대로 사용하되 앞에 + 추가
+      return `+${digitsOnly}`;
+    }
+    
     return `+${dialCode}${numberWithoutLeadingZero}`;
   }
   

@@ -433,6 +433,45 @@ export async function getFirestoreUserByPhone(phoneNumber: string): Promise<Fire
       return userData;
     }
     
+    // 국제 형식 중 + 기호가 없는 경우 (예: 8210XXXXXXXX) 처리
+    if (phoneNumber.startsWith('010')) {
+      const rawInternationalFormat = '82' + phoneNumber.substring(1).replace(/-/g, '');
+      console.log(`[DB] + 없는 국제 형식으로 검색: ${rawInternationalFormat}`);
+      
+      // ID로 직접 조회
+      const intUserRef = doc(db, USERS_COLLECTION, rawInternationalFormat);
+      const intUserDoc = await getDoc(intUserRef);
+      
+      if (intUserDoc.exists()) {
+        const userData = intUserDoc.data() as FirestoreUser;
+        console.log(`[DB] + 없는 국제 형식 ID로 사용자 발견: ${userData.uid}`);
+        return userData;
+      }
+      
+      // 전화번호 필드로 쿼리
+      const intQ = query(usersRef, where('phoneNumber', '==', rawInternationalFormat));
+      const intQuerySnapshot = await getDocs(intQ);
+      
+      if (!intQuerySnapshot.empty) {
+        const userData = intQuerySnapshot.docs[0].data() as FirestoreUser;
+        console.log(`[DB] + 없는 국제 형식 번호로 사용자 발견: ${userData.uid}`);
+        return userData;
+      }
+      
+      // + 기호가 있는 국제 형식으로 검색
+      const plusInternationalFormat = '+' + rawInternationalFormat;
+      console.log(`[DB] + 있는 국제 형식으로 검색: ${plusInternationalFormat}`);
+      
+      const intPlusQ = query(usersRef, where('phoneNumber', '==', plusInternationalFormat));
+      const intPlusQuerySnapshot = await getDocs(intPlusQ);
+      
+      if (!intPlusQuerySnapshot.empty) {
+        const userData = intPlusQuerySnapshot.docs[0].data() as FirestoreUser;
+        console.log(`[DB] + 있는 국제 형식 번호로 사용자 발견: ${userData.uid}`);
+        return userData;
+      }
+    }
+    
     // 디버깅: 모든 사용자 정보 조회
     try {
       const allUsersSnapshot = await getDocs(collection(db, USERS_COLLECTION));
