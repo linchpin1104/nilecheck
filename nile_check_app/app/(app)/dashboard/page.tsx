@@ -11,6 +11,7 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, 
   ResponsiveContainer, Legend
 } from 'recharts';
+import { useRouter, usePathname } from "next/navigation";
 
 export default function DashboardPage() {
   const { 
@@ -21,7 +22,9 @@ export default function DashboardPage() {
     isLoading, 
     getTodaySummary,
     generateSampleData,
-    syncData
+    syncData,
+    suggestions,
+    setSuggestions
   } = useAppStore();
   
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -46,6 +49,9 @@ export default function DashboardPage() {
   const [suggestionsGenerated, setSuggestionsGenerated] = useState(false);
 
   const [showWelcomePopup, setShowWelcomePopup] = useState(false);
+
+  const router = useRouter();
+  const pathname = usePathname();
 
   // Process data for charts
   useEffect(() => {
@@ -212,48 +218,48 @@ export default function DashboardPage() {
   
   // Handle generating personalized suggestions
   const handleGenerateSuggestions = async () => {
-    if (suggestionsGenerated) return;
-    
+    if (suggestionsGenerated || suggestions.length > 0) return;
     setIsGeneratingSuggestions(true);
     
+    // 데이터가 5개 미만이면 안내 메시지 고정
+    const totalDataCount = meals.length + sleep.length + checkins.length;
+    if (totalDataCount < 5) {
+      const msg = ["데이터가 충분하지 않아 생성이 어려워요."];
+      setPersonalizedSuggestions(msg);
+      setSuggestions(msg); // zustand store에도 저장해 고정시킴
+      setSuggestionsGenerated(true);
+      setIsGeneratingSuggestions(false);
+      return;
+    }
+    
     try {
-      console.log('개인화된 웰니스 제안 생성 요청 중...');
-      
-      // API 호출을 통한 제안 생성
       const response = await fetch('/api/suggestions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          uid: 'user_default', // 실제 사용자 ID로 대체 필요
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: 'user_default' }),
       });
-      
       const data = await response.json();
-      
-      if (data.error) {
-        console.error('제안 생성 중 오류:', data.error);
-        // 오류 시에도 기본 제안 데이터는 포함됨
-      }
-      
       setPersonalizedSuggestions(data.suggestions);
+      setSuggestions(data.suggestions); // zustand store에도 저장해 고정시킴
       setSuggestionsGenerated(true);
     } catch (error) {
-      console.error('제안 생성 요청 중 오류 발생:', error);
-      // 오류 발생 시 기본 제안 표시
-      setPersonalizedSuggestions([
+      const fallback = [
         "규칙적인 식사와 충분한 수분 섭취는 에너지 수준을 일정하게 유지하는 데 도움이 됩니다. 하루 8잔의 물을 마시는 것을 목표로 해보세요.",
         "하루 10분씩 명상이나 깊은 호흡 연습을 통해 스트레스 수준을 관리해보세요. 단순한 기법이지만 정신 건강에 큰 영향을 줄 수 있습니다.",
         "주 3회, 30분 이상의 유산소 운동은 기분과 수면의 질을 향상시키는 데 효과적입니다. 걷기부터 시작해보세요."
-      ]);
+      ];
+      setPersonalizedSuggestions(fallback);
+      setSuggestions(fallback); // 오류 발생 시에도 고정시킴
     } finally {
       setIsGeneratingSuggestions(false);
     }
   };
 
-  // 새로고침 함수
+  // 새로고침 함수 최적화 (중복 요청 방지)
   const refreshData = async () => {
+    // 이미 로딩 중이면 중복 요청 방지
+    if (isRefreshing) return;
+    
     try {
       setIsRefreshing(true);
       
@@ -283,6 +289,32 @@ export default function DashboardPage() {
       setIsRefreshing(false);
     }
   };
+
+  // 라우트 변경 시 자동 데이터 동기화 (isInitialized가 false일 때만)
+  useEffect(() => {
+    if (!isInitialized) {
+      const userId = 'user_default'; // 실제 사용자 ID로 대체 필요
+      syncData(userId);
+    } else {
+      // 이미 초기화되었으나 페이지 이동 시 데이터 새로고침
+      // 중복 호출 방지를 위한 디바운스 적용
+      const refreshTimeout = setTimeout(() => {
+        console.log('페이지 이동으로 데이터 새로고침');
+        refreshData();
+      }, 300);
+      
+      return () => clearTimeout(refreshTimeout);
+    }
+    // eslint-disable-next-line
+  }, [pathname]);
+
+  // suggestions가 zustand store에 있으면 항상 그 값을 보여주고, 없을 때만 생성 버튼 노출
+  useEffect(() => {
+    if (suggestions && suggestions.length > 0) {
+      setPersonalizedSuggestions(suggestions);
+      setSuggestionsGenerated(true);
+    }
+  }, [suggestions]);
 
   if (!isInitialized || isLoading) {
     return (
@@ -316,7 +348,7 @@ export default function DashboardPage() {
             <div>
               <h2 className="text-xl font-bold text-primary mb-2">환영합니다! 👋</h2>
               <p className="text-muted-foreground mb-4">
-                Nile Check에 가입해주셔서 감사합니다. 첫 번째 활동을 기록하고 웰빙 데이터를 관리해보세요.
+                더나일체크에 가입해주셔서 감사합니다. 첫 번째 활동을 기록하고 웰빙 데이터를 관리해보세요.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
@@ -383,7 +415,7 @@ export default function DashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {!suggestionsGenerated ? (
+              {personalizedSuggestions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center p-6">
                   <p className="text-muted-foreground mb-4 text-center">
                     데이터를 분석하여 맞춤형 웰니스 제안을 생성합니다.
@@ -426,11 +458,11 @@ export default function DashboardPage() {
       {!hasAnyData && (
         <Card className="mb-8 bg-blue-50 border-blue-200 shadow-md">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-blue-700"><Info className="h-5 w-5"/> 닐 체크에 오신 것을 환영합니다!</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-blue-700"><Info className="h-5 w-5"/> 더나일체크에 오신 것을 환영합니다!</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-blue-600 mb-4">
-              닐 체크는 건강한 생활 습관을 기록하고 분석하여 웰니스 여정을 지원합니다. 식사, 수면 및 정서 상태를 추적할 수 있습니다.
+              더나일체크는 건강한 생활 습관을 기록하고 분석하여 웰니스 여정을 지원합니다. 식사, 수면 및 정서 상태를 추적할 수 있습니다.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Link href="/log-activity">

@@ -44,6 +44,9 @@ interface AppState {
   checkins: WellbeingCheckinRecord[];
   isInitialized: boolean;
   isLoading: boolean;
+  suggestions: string[];
+  lastSyncTime?: number;
+  setSuggestions: (suggestions: string[]) => void;
   
   // 식사 기록 관련 메서드
   addMeal: (meal: Omit<MealEntry, 'id'>) => void;
@@ -100,6 +103,9 @@ export const useAppStore = create<AppState>()(
       checkins: [],
       isInitialized: false,
       isLoading: true,
+      suggestions: [],
+      lastSyncTime: 0,
+      setSuggestions: (suggestions) => set({ suggestions }),
       
       addMeal: (meal) => {
         // 현재 사용자 ID 가져오기 (수정됨)
@@ -258,6 +264,13 @@ export const useAppStore = create<AppState>()(
       syncData: async (userId: string) => {
         try {
           console.log(`[Store] 사용자 데이터 동기화 시작 - 사용자 ID: ${userId}`);
+          
+          // 이미 로딩 중이면 중복 요청 방지
+          if (get().isLoading) {
+            console.log('[Store] 이미 데이터 동기화 중, 중복 요청 방지');
+            return false;
+          }
+          
           set({ isLoading: true });
           
           // 세션 상태 확인
@@ -274,6 +287,16 @@ export const useAppStore = create<AppState>()(
             }, 3000);
             
             return false;
+          }
+          
+          // 마지막 동기화 시간 체크 (5초 이내 중복 요청 방지)
+          const now = Date.now();
+          const lastSyncTime = get().lastSyncTime || 0;
+          
+          if (now - lastSyncTime < 5000 && get().isInitialized) {
+            console.log('[Store] 최근 5초 이내 동기화 완료, 중복 요청 방지');
+            set({ isLoading: false });
+            return true;
           }
           
           // 식사 데이터 가져오기
@@ -309,7 +332,7 @@ export const useAppStore = create<AppState>()(
             set({ checkins: checkinsData.checkins });
           }
           
-          set({ isLoading: false, isInitialized: true });
+          set({ isLoading: false, isInitialized: true, lastSyncTime: Date.now() });
           console.log('[Store] 데이터 동기화 완료');
           return true;
         } catch (error) {
@@ -464,13 +487,16 @@ export const useAppStore = create<AppState>()(
       }
     }),
     {
-      name: 'nile-check-storage',
-      onRehydrateStorage: () => (state) => {
-        if (state) {
-          state.isInitialized = true;
-          state.isLoading = false;
-        }
-      }
+      name: 'app-store',
+      partialize: (state) => ({
+        meals: state.meals,
+        sleep: state.sleep,
+        checkins: state.checkins,
+        isInitialized: state.isInitialized,
+        isLoading: state.isLoading,
+        suggestions: state.suggestions,
+        lastSyncTime: state.lastSyncTime,
+      }),
     }
   )
 ); 
