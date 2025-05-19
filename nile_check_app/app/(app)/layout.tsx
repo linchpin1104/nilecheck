@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X, LogOut, User } from "lucide-react";
+import { useSession } from "@/contexts/SessionProvider";
+import { Button } from "@/components/ui/button";
 
 export default function AppLayout({
   children,
@@ -12,15 +14,20 @@ export default function AppLayout({
 }>) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, isAuthenticated, logout } = useSession();
   
   const navigation = [
-    { name: '주간리포트', href: '/dashboard' },
+    { name: '주간리포트', href: '/solutions' },
     { name: '활동 기록', href: '/log-activity' },
     { name: '내 정보', href: '/mypage' },
   ];
   
   const toggleMenu = () => {
     setMobileMenuOpen(!mobileMenuOpen);
+  };
+  
+  const handleLogout = () => {
+    logout();
   };
   
   return (
@@ -31,7 +38,7 @@ export default function AppLayout({
             더나일체크
           </Link>
           
-          <div className="hidden md:flex space-x-6">
+          <div className="hidden md:flex items-center space-x-6">
             {navigation.map((item) => (
               <Link
                 key={item.name}
@@ -45,6 +52,31 @@ export default function AppLayout({
                 {item.name}
               </Link>
             ))}
+            
+            {isAuthenticated ? (
+              <div className="flex items-center gap-4">
+                <div className="text-sm font-medium flex items-center">
+                  <User className="h-4 w-4 mr-1" />
+                  <span>{user?.name || '사용자'}</span>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleLogout}
+                  className="text-sm text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <LogOut className="h-4 w-4 mr-1" />
+                  로그아웃
+                </Button>
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                로그인
+              </Link>
+            )}
           </div>
           
           <div className="md:hidden">
@@ -85,6 +117,33 @@ export default function AppLayout({
                   {item.name}
                 </Link>
               ))}
+              
+              {isAuthenticated ? (
+                <>
+                  <div className="px-3 py-3 text-base font-medium text-muted-foreground flex items-center">
+                    <User className="h-5 w-5 mr-2" />
+                    <span>{user?.name || '사용자'}</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      handleLogout();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-4 rounded-md text-base font-medium text-red-600 hover:text-red-700 hover:bg-red-50 flex items-center"
+                  >
+                    <LogOut className="h-5 w-5 mr-2" />
+                    로그아웃
+                  </button>
+                </>
+              ) : (
+                <Link
+                  href="/login"
+                  className="block px-3 py-4 rounded-md text-base font-medium text-primary hover:underline"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  로그인
+                </Link>
+              )}
             </div>
           </div>
         )}

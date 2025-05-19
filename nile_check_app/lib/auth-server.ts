@@ -232,7 +232,7 @@ export function setAuthCookie(response: NextResponse, token: string) {
     secure: process.env.NODE_ENV === 'production',
     maxAge: 60 * 60 * 24 * 7, // 7일
     sameSite: 'lax',
-    domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined
+    domain: undefined // 도메인 지정을 제거하여 현재 도메인에만 쿠키 적용
   });
   
   // Set cookie in headers directly as well for maximum compatibility
@@ -249,15 +249,29 @@ export function setAuthCookie(response: NextResponse, token: string) {
   return response;
 }
 
-// 로그아웃 시 쿠키 삭제
+// 쿠키 제거
 export function clearAuthCookie(response: NextResponse) {
   response.cookies.set({
     name: TOKEN_COOKIE_NAME,
     value: '',
     httpOnly: true,
     path: '/',
-    maxAge: 0
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 0,
+    sameSite: 'lax',
+    domain: undefined // 도메인 지정을 제거하여 현재 도메인에만 쿠키 적용
   });
+  
+  // Clear cookie in headers directly as well for maximum compatibility
+  const cookieHeader = `${TOKEN_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`;
+  
+  // Append to existing Set-Cookie headers if any
+  const existingCookies = response.headers.get('Set-Cookie');
+  if (existingCookies) {
+    response.headers.set('Set-Cookie', `${existingCookies}, ${cookieHeader}`);
+  } else {
+    response.headers.set('Set-Cookie', cookieHeader);
+  }
   
   return response;
 }
