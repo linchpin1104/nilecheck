@@ -27,7 +27,36 @@ export default function MyPage() {
   
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLocalLoading, setIsLocalLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // 페이지 로딩 시 세션 상태 강제 확인
+  useEffect(() => {
+    const initPage = async () => {
+      setIsLocalLoading(true);
+      console.log('[MyPage] 페이지 초기화 시작, 세션 확인 중...');
+      
+      try {
+        // 세션 강제 갱신
+        await refreshSession();
+        
+        // 데이터 동기화
+        const userId = getUserId();
+        console.log('[MyPage] 사용자 ID:', userId);
+        
+        if (userId) {
+          await syncData(userId);
+        }
+      } catch (err) {
+        console.error('[MyPage] 초기화 오류:', err);
+      } finally {
+        setIsLocalLoading(false);
+        console.log('[MyPage] 페이지 초기화 완료');
+      }
+    };
+    
+    initPage();
+  }, [refreshSession, getUserId, syncData]);
   
   // 사용자 정보가 로드되면 상태 업데이트
   const [userData, setUserData] = useState<UserData>({
@@ -109,7 +138,7 @@ export default function MyPage() {
   };
   
   // 로딩 상태 최적화
-  const isPageLoading = authLoading || !isInitialized;
+  const isPageLoading = authLoading || !isInitialized || isLocalLoading;
   
   // 로딩 중 표시
   if (isPageLoading) {

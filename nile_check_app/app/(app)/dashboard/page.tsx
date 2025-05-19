@@ -28,8 +28,9 @@ export default function DashboardPage() {
     setSuggestions
   } = useAppStore();
   
-  const { getUserId } = useAuth();
+  const { getUserId, refreshSession, isAuthenticated, isLoading: authLoading } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLocalLoading, setIsLocalLoading] = useState(true);
   
   const [summary, setSummary] = useState({
     todaySleepHours: 0,
@@ -386,6 +387,30 @@ export default function DashboardPage() {
       setSuggestionsGenerated(true);
     }
   }, [suggestions]);
+
+  // 페이지 로딩 시 세션 상태 강제 확인 및 데이터 동기화
+  useEffect(() => {
+    const initPage = async () => {
+      setIsLocalLoading(true);
+      console.log('[Dashboard] 페이지 초기화 시작, 세션 확인 중...');
+      
+      // 세션 강제 갱신
+      await refreshSession();
+      
+      // 데이터 동기화
+      const userId = getUserId();
+      console.log('[Dashboard] 사용자 ID:', userId);
+      
+      if (userId) {
+        await syncData(userId);
+      }
+      
+      setIsLocalLoading(false);
+      console.log('[Dashboard] 페이지 초기화 완료');
+    };
+    
+    initPage();
+  }, [refreshSession, getUserId, syncData]);
 
   if (!isInitialized || isLoading) {
     return (

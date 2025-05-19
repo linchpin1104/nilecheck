@@ -58,6 +58,13 @@ export async function login(phoneNumber: string, password: string): Promise<Logi
   try {
     console.log(`[Auth] 로그인 시도 - 전화번호: ${phoneNumber}`);
     
+    // 국제 전화번호 형식 처리 (+82로 시작하면 0으로 변환)
+    if (phoneNumber.startsWith('+82')) {
+      const originalPhone = phoneNumber;
+      phoneNumber = '0' + phoneNumber.substring(3);
+      console.log(`[Auth] 국제 전화번호 형식 변환: ${originalPhone} -> ${phoneNumber}`);
+    }
+    
     // 전화번호 표준화
     const standardizedPhone = standardizePhoneNumber(phoneNumber);
     const phoneWithoutHyphens = removeHyphens(standardizedPhone);

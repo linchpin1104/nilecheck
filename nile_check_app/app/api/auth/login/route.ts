@@ -21,13 +21,20 @@ const TEST_ACCOUNTS = [
 
 export async function POST(req: NextRequest) {
   try {
-    const { phoneNumber, password } = await req.json();
+    let { phoneNumber, password } = await req.json();
     
     if (!phoneNumber || !password) {
       return NextResponse.json(
         { success: false, message: '전화번호와 비밀번호를 모두 입력해주세요.' },
         { status: 400 }
       );
+    }
+    
+    // 전화번호 형식 표준화 (+82로 시작하면 0으로 변환)
+    if (phoneNumber.startsWith('+82')) {
+      const originalPhone = phoneNumber;
+      phoneNumber = '0' + phoneNumber.substring(3);
+      console.log(`[Auth API] 국제 전화번호 형식 변환: ${originalPhone} -> ${phoneNumber}`);
     }
     
     console.log(`[Auth API] 로그인 시도: ${phoneNumber}`);
