@@ -37,6 +37,19 @@ function LoginForm() {
         setCallbackUrl(callback);
       }
     }
+    
+    // 화면 확대 방지를 위한 추가 설정
+    const preventZoom = (e: TouchEvent) => {
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
+    };
+    
+    document.addEventListener('touchstart', preventZoom, { passive: false });
+    
+    return () => {
+      document.removeEventListener('touchstart', preventZoom);
+    };
   }, [searchParams]);
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -144,6 +157,7 @@ function LoginForm() {
                 <Input
                   id="phoneNumber"
                   type="tel"
+                  inputMode="tel"
                   placeholder={countryCode === "KR" ? "010-0000-0000" : "Phone number"}
                   value={phoneNumber}
                   onChange={handlePhoneNumberChange}
@@ -218,7 +232,7 @@ function LoginForm() {
 // 메인 로그인 페이지 컴포넌트
 export default function LoginPage() {
   return (
-    <div className="flex justify-center items-center min-h-screen bg-slate-50 px-4">
+    <div className="flex justify-center items-center min-h-screen bg-slate-50 px-4 touch-manipulation overscroll-none">
       <Suspense fallback={
         <div className="w-full max-w-md p-8 flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
