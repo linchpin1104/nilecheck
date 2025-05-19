@@ -1,6 +1,7 @@
 import { db } from './firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc, Timestamp, addDoc, deleteDoc } from 'firebase/firestore';
 import { User } from '@/lib/auth-server';
+import bcrypt from 'bcrypt';
 
 // Collection names
 const USERS_COLLECTION = 'users';
@@ -10,7 +11,8 @@ const VERIFICATION_COLLECTION = 'verifications';
 // Interface for user document in Firestore
 export interface FirestoreUser extends Omit<User, 'id'> {
   uid: string;
-  password: string; // In production, passwords should never be stored in Firestore
+  passwordHash: string; // 해시된 비밀번호
+  password?: string; // 이전 호환성을 위해 유지 (점진적으로 제거 예정)
   phoneNumber: string;
   verified: boolean;
 }
@@ -86,13 +88,24 @@ export async function createFirestoreUser(user: Omit<User, 'id' | 'createdAt'>, 
     const userId = removeHyphens(standardPhoneNumber);
     console.log(`[DB] 생성된 사용자 ID: ${userId}`);
     
-    // Create user document with standardized phone number
+    // 비밀번호 해시 처리 (개발 환경에서도 해시 처리)
+    let passwordHash;
+    try {
+      passwordHash = await bcrypt.hash(password, 10);
+      console.log(`[DB] 비밀번호 해시 처리 완료`);
+    } catch (hashError) {
+      console.error('[DB] 비밀번호 해시 처리 중 오류:', hashError);
+      // 해시 처리에 실패하면 일반 텍스트로 저장하지 않고 오류 발생
+      throw new Error('비밀번호 해시 처리 중 오류가 발생했습니다.');
+    }
+    
+    // Create user document with standardized phone number and hashed password
     const userDoc: FirestoreUser = {
       uid: userId,
       phoneNumber: standardPhoneNumber, // 표준화된 번호 사용
       name: user.name,
       email: user.email || '',
-      password: password, // In a real app, this would be hashed
+      passwordHash: passwordHash, // 해시된 비밀번호 저장
       createdAt: new Date().toISOString(),
       verified: true
     };
@@ -122,7 +135,7 @@ export async function createFirestoreUser(user: Omit<User, 'id' | 'createdAt'>, 
           ...existingUser,
           name: user.name,
           email: user.email || existingUser.email,
-          password: password,
+          passwordHash: passwordHash, // 업데이트된 해시 비밀번호
           phoneNumber: standardPhoneNumber, // 표준화된 번호로 항상 업데이트
         };
         
@@ -130,8 +143,10 @@ export async function createFirestoreUser(user: Omit<User, 'id' | 'createdAt'>, 
         await setDoc(userRef, updatedUserDoc);
         console.log(`[DB] 기존 사용자 정보 업데이트 완료: ${userId}`);
         
-        // TEST_USERS 배열에도 사용자 추가 또는 업데이트 (세션 로그인용)
-        updateTestUsers(userId, standardPhoneNumber, user.name, user.email || '', password, existingUser.createdAt);
+        // 개발 환경에서만 테스트 사용자 배열에 추가
+        if (process.env.NODE_ENV === 'development') {
+          updateTestUsers(userId, standardPhoneNumber, user.name, user.email || '', password, existingUser.createdAt);
+        }
         
         return userId;
       }
@@ -157,16 +172,23 @@ export async function createFirestoreUser(user: Omit<User, 'id' | 'createdAt'>, 
           uid: userId, // 새 ID로 업데이트
           name: user.name,
           email: user.email || existingUserByPhone.email,
-          password: password,
+          passwordHash: passwordHash, // 해시된 비밀번호로 업데이트
           phoneNumber: standardPhoneNumber, // 표준화된 번호 사용
         };
+        
+        // 기존 password 필드가 있다면 제거 (보안 강화)
+        if ('password' in updatedUserDoc) {
+          delete updatedUserDoc.password;
+        }
         
         // 새 ID로 문서 생성
         await setDoc(userRef, updatedUserDoc);
         console.log(`[DB] 사용자 정보 새 ID로 이전 완료: ${userId}`);
         
-        // TEST_USERS 배열에도 사용자 추가 또는 업데이트 (세션 로그인용)
-        updateTestUsers(userId, standardPhoneNumber, user.name, user.email || '', password, existingUserByPhone.createdAt);
+        // 개발 환경에서만 테스트 사용자 배열에 추가
+        if (process.env.NODE_ENV === 'development') {
+          updateTestUsers(userId, standardPhoneNumber, user.name, user.email || '', password, existingUserByPhone.createdAt);
+        }
         
         return userId;
       }
@@ -181,8 +203,10 @@ export async function createFirestoreUser(user: Omit<User, 'id' | 'createdAt'>, 
     
     console.log(`[DB] 사용자가 Firestore에 성공적으로 생성됨. ID: ${userId}`);
     
-    // TEST_USERS 배열에도 사용자 추가 (세션 로그인용)
-    updateTestUsers(userId, standardPhoneNumber, user.name, user.email || '', password, userDoc.createdAt);
+    // 개발 환경에서만 테스트 사용자 배열에 추가
+    if (process.env.NODE_ENV === 'development') {
+      updateTestUsers(userId, standardPhoneNumber, user.name, user.email || '', password, userDoc.createdAt);
+    }
     
     return userId;
   } catch (error) {

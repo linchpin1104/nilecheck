@@ -7,18 +7,30 @@ import { Settings, User, LogOut, Mail, Phone, CalendarDays, RefreshCw } from "lu
 import { useRouter } from "next/navigation";
 import useAuth from "@/hooks/useAuth";
 import { useAppStore } from "@/lib/store";
+import { sessionStore } from "@/contexts/SessionProvider";
+
+interface UserData {
+  name: string;
+  email: string;
+  phoneNumber: string;
+  createdAt: string;
+  childrenInfo: {
+    count: number;
+    ageGroups: string[];
+  };
+}
 
 export default function MyPage() {
   const router = useRouter();
-  const { user, isLoading: authLoading, logout, refreshSession } = useAuth();
-  const { meals, sleep, checkins, isInitialized } = useAppStore();
+  const { user, isLoading: authLoading, logout, refreshSession, getUserId } = useAuth();
+  const { meals, sleep, checkins, isInitialized, syncData } = useAppStore();
   
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   // 사용자 정보가 로드되면 상태 업데이트
-  const [userData, setUserData] = useState({
+  const [userData, setUserData] = useState<UserData>({
     name: "사용자",
     email: "",
     phoneNumber: "",
@@ -37,15 +49,19 @@ export default function MyPage() {
     wellnessReports: Math.floor(checkins.length / 4) // Just an example calculation
   }), [meals.length, sleep.length, checkins.length]);
   
-  // 사용자 정보 수동 새로고침
+  // 사용자 정보 수동 새로고침 (세션 정보 및 데이터 모두 갱신)
   const handleRefreshUserData = async () => {
     try {
       setIsRefreshing(true);
       setError(null);
-      console.log("사용자 정보 새로고침 시작");
+      console.log("사용자 정보 및 데이터 새로고침 시작");
       
       // 세션 정보 강제 갱신
       await refreshSession();
+      
+      // 앱 데이터도 함께 새로고침
+      const userId = getUserId() || sessionStore.userId || 'user_default';
+      await syncData(userId);
       
       setIsRefreshing(false);
     } catch (err) {
@@ -55,7 +71,7 @@ export default function MyPage() {
     }
   };
   
-  // 인증된 사용자 정보로 상태 업데이트 - 최적화
+  // 인증된 사용자 정보로 상태 업데이트 - childrenInfo 포함하여 모든 필드 갱신
   useEffect(() => {
     console.log("사용자 정보 useEffect 실행:", user ? `${user.name} (${user.phoneNumber})` : "정보 없음");
     
@@ -65,7 +81,8 @@ export default function MyPage() {
         name: user.name || prevData.name,
         email: user.email || prevData.email,
         phoneNumber: user.phoneNumber || prevData.phoneNumber,
-        createdAt: user.createdAt || prevData.createdAt
+        createdAt: user.createdAt || prevData.createdAt,
+        childrenInfo: user.childrenInfo || prevData.childrenInfo
       }));
     }
   }, [user]);
@@ -75,6 +92,11 @@ export default function MyPage() {
     try {
       setIsLoggingOut(true);
       setError(null);
+      
+      // 세션 스토어도 초기화
+      sessionStore.updateUserId(null);
+      sessionStore.isAuthenticated = false;
+      
       await logout();
       // 로그아웃 후 로그인 페이지로 리디렉션
       router.push('/login');

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { subWeeks } from "date-fns";
 import { useAppStore } from "@/lib/store";
+import useAuth from "@/hooks/useAuth";
 import { 
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, 
   ResponsiveContainer, Legend
@@ -27,6 +28,7 @@ export default function DashboardPage() {
     setSuggestions
   } = useAppStore();
   
+  const { getUserId } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   const [summary, setSummary] = useState({
@@ -265,10 +267,13 @@ export default function DashboardPage() {
     }
     
     try {
+      // 사용자 ID 일관성 있게 가져오기
+      const userId = getUserId() || 'user_default';
+      
       const response = await fetch('/api/suggestions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: 'user_default' }),
+        body: JSON.stringify({ uid: userId }),
       });
       const data = await response.json();
       setPersonalizedSuggestions(data.suggestions);
@@ -287,7 +292,7 @@ export default function DashboardPage() {
     } finally {
       setIsGeneratingSuggestions(false);
     }
-  }, [suggestionsGenerated, suggestions.length, meals.length, sleep.length, checkins.length, setSuggestions, isGeneratingSuggestions]);
+  }, [suggestionsGenerated, suggestions.length, meals.length, sleep.length, checkins.length, setSuggestions, isGeneratingSuggestions, getUserId]);
 
   // 새로고침 함수 최적화 (중복 요청 방지)
   const refreshData = useCallback(async () => {
@@ -300,8 +305,12 @@ export default function DashboardPage() {
     try {
       setIsRefreshing(true);
       
+      // 신뢰할 수 있는 사용자 ID 가져오기
+      const userId = getUserId() || 'user_default';
+      console.log(`대시보드 - ${userId} 사용자 데이터 새로고침 시작`);
+      
       // syncData 메서드 사용해 데이터 새로고침
-      await syncData('user_default');
+      await syncData(userId);
       
       // 통계 데이터 업데이트
       const todaySummary = getTodaySummary();
@@ -333,7 +342,8 @@ export default function DashboardPage() {
     calculateSleepStats,
     processActivityData,
     processEmotionData,
-    processPartnerData
+    processPartnerData,
+    getUserId
   ]);
 
   // 라우트 변경 시 자동 데이터 동기화
@@ -354,8 +364,11 @@ export default function DashboardPage() {
     console.log('대시보드 페이지 로드 - 데이터 동기화 시작');
     setIsRefreshing(true);
     
-    // syncData 호출 시 항상 사용자 기본값 전달
-    syncData('user_default')
+    // 신뢰할 수 있는 사용자 ID 가져오기
+    const userId = getUserId() || 'user_default';
+    
+    // syncData 호출
+    syncData(userId)
       .then((success) => {
         console.log(`대시보드 데이터 동기화 ${success ? '성공' : '일부 실패'}`);
         setIsRefreshing(false);
@@ -364,7 +377,7 @@ export default function DashboardPage() {
         console.error('대시보드 데이터 동기화 실패:', err);
         setIsRefreshing(false);
       });
-  }, [isInitialized, hasData, pathname, isLoading, isRefreshing, syncData]);
+  }, [isInitialized, hasData, pathname, isLoading, isRefreshing, syncData, getUserId]);
 
   // suggestions가 zustand store에 있으면 항상 그 값을 보여주고, 없을 때만 생성 버튼 노출
   useEffect(() => {

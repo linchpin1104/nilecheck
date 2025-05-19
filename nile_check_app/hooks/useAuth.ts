@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { User } from '@/lib/auth-server';
+import { sessionStore } from '@/contexts/SessionProvider';
 
 // Add session cache mechanism
 interface SessionCache {
@@ -13,8 +14,8 @@ interface SessionCache {
   timestamp: number;
 }
 
-// Cache will last for 30 seconds
-const SESSION_CACHE_DURATION = 10 * 1000; // 10 seconds in milliseconds
+// Cache will last for 30 seconds (extended from 10 seconds)
+const SESSION_CACHE_DURATION = 30 * 1000; // 30 seconds in milliseconds
 let sessionCache: SessionCache = {
   data: null,
   timestamp: 0
@@ -59,7 +60,14 @@ export default function useAuth() {
           sessionCache.data && 
           (now - sessionCache.timestamp < SESSION_CACHE_DURATION)) {
         // Use cached data
-        console.log('Using cached session data');
+        console.log('[useAuth] 캐시된 세션 데이터 사용');
+        
+        // sessionStore와 동기화
+        if (sessionCache.data.user?.id) {
+          sessionStore.updateUserId(sessionCache.data.user.id);
+          sessionStore.isAuthenticated = sessionCache.data.isAuthenticated;
+        }
+        
         setState({
           user: sessionCache.data.user,
           isAuthenticated: sessionCache.data.isAuthenticated,
@@ -70,7 +78,7 @@ export default function useAuth() {
       }
       
       // Proceed with API call if no cache or cache expired
-      console.log('Fetching fresh session data');
+      console.log('[useAuth] 새로운 세션 정보 요청');
       const response = await fetch('/api/auth/session', {
         method: 'GET',
         headers: {
@@ -96,6 +104,12 @@ export default function useAuth() {
           timestamp: now
         };
         
+        // sessionStore와 동기화
+        if (data.user?.id) {
+          sessionStore.updateUserId(data.user.id);
+          sessionStore.isAuthenticated = true;
+        }
+        
         console.log('[useAuth] 세션 정보 업데이트:', { 
           userId: data.user.id, 
           name: data.user.name, 
@@ -118,6 +132,7 @@ export default function useAuth() {
           timestamp: now
         };
         
+        // sessionStore와 동기화 - 인증 실패
         console.log('[useAuth] 인증되지 않은 세션');
         
         setState({
@@ -191,6 +206,10 @@ export default function useAuth() {
         timestamp: 0
       };
       
+      // sessionStore와 동기화 - 로그아웃
+      sessionStore.updateUserId(null);
+      sessionStore.isAuthenticated = false;
+      
       setState({
         user: null,
         isAuthenticated: false,
@@ -252,11 +271,22 @@ export default function useAuth() {
     fetchSession();
   }, [fetchSession]);
   
+  // sessionStore에서 사용자 ID를 직접 가져오는 메서드 추가
+  const getUserId = () => {
+    // 로컬 상태가 있으면 우선 사용
+    if (state.user?.id) {
+      return state.user.id;
+    }
+    // 그 다음 sessionStore에서 확인
+    return sessionStore.userId;
+  };
+  
   return {
     ...state,
     login,
     logout,
     register,
-    refreshSession: () => fetchSession(true)  // Added option to force refresh
+    refreshSession: () => fetchSession(true),  // 세션 강제 갱신 옵션
+    getUserId  // 사용자 ID 가져오기 메서드 추가
   };
 } 

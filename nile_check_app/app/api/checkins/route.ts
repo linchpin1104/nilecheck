@@ -55,15 +55,35 @@ export async function POST(request: Request) {
     // 세션 확인하여 인증된 사용자인지 검증
     const userSession = await getServerSession();
     
+    // 세션이 없으면 인증 오류 반환
+    if (!userSession) {
+      console.error('[API] 체크인 요청 인증 실패: 세션 없음');
+      return createApiErrorResponse('인증이 필요합니다. 다시 로그인해주세요.', 401);
+    }
+    
     const { uid, checkinData } = await request.json();
 
     if (!uid || !checkinData) {
       return createApiErrorResponse('사용자 ID와 체크인 데이터가 필요합니다.', 400);
     }
     
-    // 세션 사용자 ID와 요청 ID가 다른 경우 검증 실패
-    if (userSession?.id && userSession.id !== uid) {
-      console.error(`세션 유저 ID(${userSession?.id})와 요청 ID(${uid})가 일치하지 않습니다.`);
+    // 세션 사용자 ID와 요청 ID 일관성 체크
+    // 전화번호 기반 ID와 세션 ID 간 상호 변환 로직 추가
+    let isValidRequest = userSession.id === uid;
+    
+    // ID가 일치하지 않는 경우, 전화번호 기반으로 생성된 ID인지 확인
+    if (!isValidRequest && userSession.phoneNumber) {
+      // 전화번호에서 하이픈 제거한 ID와 비교
+      const phoneBasedId = userSession.phoneNumber.replace(/-/g, '');
+      isValidRequest = phoneBasedId === uid;
+      
+      if (isValidRequest) {
+        console.log(`[API] 전화번호 기반 ID 검증 성공: ${uid}`);
+      }
+    }
+    
+    if (!isValidRequest) {
+      console.error(`[API] 세션 유저 ID(${userSession?.id})와 요청 ID(${uid}) 불일치`);
       return createApiErrorResponse('인증 토큰과 사용자 ID가 일치하지 않습니다.', 401);
     }
 
@@ -78,7 +98,8 @@ export async function POST(request: Request) {
     logApiAction('체크인 데이터 저장 시작', { 
       uid, 
       date: dateStr, 
-      stressLevel: checkinData.stressLevel 
+      stressLevel: checkinData.stressLevel,
+      sessionId: userSession.id
     });
 
     try {

@@ -9,6 +9,10 @@ export interface User {
   name: string;
   email?: string;
   createdAt: string;
+  childrenInfo?: {
+    count: number;
+    ageGroups: string[];
+  };
 }
 
 // 로그인 결과 인터페이스

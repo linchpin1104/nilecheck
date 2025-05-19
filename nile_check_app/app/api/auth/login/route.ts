@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSession, User, setAuthCookie } from '@/lib/auth-server';
 import { connectToFirestore } from '@/lib/firebase/server';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import bcrypt from 'bcrypt';
 
 // 테스트 모드에서 사용할 계정
@@ -97,17 +97,53 @@ export async function POST(req: NextRequest) {
     
     try {
       if (process.env.NODE_ENV === 'development') {
-        // 개발 환경에서는 단순 비교
-        passwordMatches = userData.password === password || password === '123456';
-        console.log(`[Auth API] 개발 환경 비밀번호 확인: ${passwordMatches ? '일치' : '불일치'}`);
-      } else {
-        // 프로덕션 환경에서는 bcrypt 사용 시도
-        try {
+        // 개발 환경에서도 bcrypt 비교 시도
+        if (userData.passwordHash) {
+          // 해시된 비밀번호가 있으면 이를 사용
           passwordMatches = await bcrypt.compare(password, userData.passwordHash);
-        } catch (bcryptErr) {
-          console.error('[Auth API] bcrypt 로드 오류:', bcryptErr);
-          // 비밀번호 직접 비교로 폴백
+          console.log(`[Auth API] 개발 환경 해시 비밀번호 확인: ${passwordMatches ? '일치' : '불일치'}`);
+        } else if (userData.password) {
+          // 이전 방식 지원 (평문 비밀번호)
+          passwordMatches = userData.password === password || password === '123456';
+          console.log(`[Auth API] 개발 환경 레거시 비밀번호 확인: ${passwordMatches ? '일치' : '불일치'}`);
+          
+          // 레거시 비밀번호 방식 감지 시, 해시 처리로 업그레이드 시도 (다음 로그인부터 사용)
+          try {
+            const passwordHash = await bcrypt.hash(password, 10);
+            const userRef = doc(db, 'users', userDoc.id);
+            await updateDoc(userRef, { 
+              passwordHash,
+              password: null // 기존 평문 비밀번호 제거
+            });
+            console.log(`[Auth API] 개발 환경 레거시 비밀번호를 해시 처리로 업그레이드 완료`);
+          } catch (upgradeErr) {
+            console.error('[Auth API] 비밀번호 해시 업그레이드 실패:', upgradeErr);
+          }
+        }
+      } else {
+        // 프로덕션 환경에서는 항상 bcrypt 사용
+        if (userData.passwordHash) {
+          passwordMatches = await bcrypt.compare(password, userData.passwordHash);
+        } else if (userData.password) {
+          // 레거시 방식 지원 (프로덕션에서도 일시적으로)
+          console.warn('[Auth API] 프로덕션에서 해시되지 않은 비밀번호 감지. 해시 처리 필요');
           passwordMatches = userData.password === password;
+          
+          // 프로덕션에서 레거시 비밀번호 감지 시, 즉시 해시 처리로 업그레이드
+          try {
+            const passwordHash = await bcrypt.hash(password, 10);
+            const userRef = doc(db, 'users', userDoc.id);
+            await updateDoc(userRef, { 
+              passwordHash,
+              password: null // 기존 평문 비밀번호 제거
+            });
+            console.log('[Auth API] 비밀번호 해시 처리로 업그레이드 완료');
+          } catch (upgradeErr) {
+            console.error('[Auth API] 비밀번호 해시 업그레이드 실패:', upgradeErr);
+          }
+        } else {
+          console.error('[Auth API] 비밀번호 필드가 없음:', userDoc.id);
+          passwordMatches = false;
         }
       }
       
@@ -121,9 +157,9 @@ export async function POST(req: NextRequest) {
     } catch (error) {
       console.error('[Auth API] 비밀번호 확인 중 오류:', error);
       
-      // 개발 환경에서는 테스트 비밀번호로 로그인 허용
+      // 개발 환경에서는 테스트 비밀번호로 로그인 허용 (비상 시에만)
       if (process.env.NODE_ENV === 'development' && password === '123456') {
-        console.log(`[Auth API] 개발 환경 직접 비밀번호 일치: ${phoneNumber}`);
+        console.log(`[Auth API] 개발 환경 비상 로그인 허용: ${phoneNumber}`);
         passwordMatches = true;
       } else {
         return NextResponse.json(
