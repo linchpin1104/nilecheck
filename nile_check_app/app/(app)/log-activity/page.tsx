@@ -650,33 +650,33 @@ export default function LogActivityPage() {
           onDateSelect={setSelectedDate}
         />
         
-        <Tabs defaultValue="summary" className="w-full">
-          <TabsList className="grid grid-cols-4 mb-4">
-            <TabsTrigger value="summary">요약</TabsTrigger>
+        {/* 요약 정보를 달력 아래에 바로 표시 */}
+        <div className="mb-6">
+          {isRefreshing ? (
+            <Card>
+              <CardContent className="pt-6 flex justify-center items-center h-48">
+                <div className="flex flex-col items-center">
+                  <RefreshCw className="h-8 w-8 animate-spin text-primary mb-2" />
+                  <p className="text-muted-foreground">데이터를 불러오는 중...</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <ActivitySummary 
+              date={selectedDate}
+              meals={dateRecord.meals}
+              sleep={dateRecord.sleep}
+              checkin={dateRecord.checkin}
+            />
+          )}
+        </div>
+        
+        <Tabs defaultValue="meals" className="w-full">
+          <TabsList className="grid grid-cols-3 mb-4">
             <TabsTrigger value="meals">식사</TabsTrigger>
             <TabsTrigger value="sleep">수면</TabsTrigger>
             <TabsTrigger value="checkin">체크인</TabsTrigger>
           </TabsList>
-          
-          <TabsContent value="summary">
-            {isRefreshing ? (
-              <Card>
-                <CardContent className="pt-6 flex justify-center items-center h-48">
-                  <div className="flex flex-col items-center">
-                    <RefreshCw className="h-8 w-8 animate-spin text-primary mb-2" />
-                    <p className="text-muted-foreground">데이터를 불러오는 중...</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <ActivitySummary 
-                date={selectedDate}
-                meals={dateRecord.meals}
-                sleep={dateRecord.sleep}
-                checkin={dateRecord.checkin}
-              />
-            )}
-          </TabsContent>
           
           <TabsContent value="meals">
             {isFutureDate(selectedDate) ? (

@@ -9,12 +9,27 @@ import { useAuth } from '@/contexts/AuthContext';
 
 // Constants
 const FIRESTORE_COLLECTION_NAME = 'appData';
+// Cache duration in milliseconds (5 minutes)
+const CACHE_DURATION = 5 * 60 * 1000;
 
 const initialEmptyData: AppStoreData = {
   meals: [],
   sleep: [],
   checkins: [],
   wellnessReports: [],
+};
+
+// Data cache structure
+interface DataCache {
+  userData: Record<string, {
+    data: AppStoreData;
+    timestamp: number;
+  }>;
+}
+
+// Global cache (outside of components)
+const globalDataCache: DataCache = {
+  userData: {}
 };
 
 // Context Definition
@@ -36,6 +51,11 @@ interface AppStoreContextType {
   addWellnessReport: (reportInput: WellnessReportInput, reportOutput: WellnessReportRecord['output']) => Promise<void>;
   getAllWellnessReports: () => WellnessReportRecord[];
   getLatestWellnessReport: () => WellnessReportRecord | null;
+  syncData: () => Promise<void>;  // Added explicit function for data sync
+  getTodaySummary: () => { todaySleepHours: number; todayMealsLogged: number; todayActivitiesLogged: number; };
+  generateSampleData: () => Promise<void>;
+  suggestions: string[];
+  setSuggestions: (suggestions: string[]) => void;
 }
 
 // Define the input type for wellness reports
@@ -64,6 +84,7 @@ function useAppStoreInternal(): AppStoreContextType {
   const [data, setData] = useState<AppStoreData>(initialEmptyData);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
   const userSpecificDocRef = useMemo(() => {
     if (user?.uid) {
@@ -72,54 +93,104 @@ function useAppStoreInternal(): AppStoreContextType {
     return null;
   }, [user]);
 
-  useEffect(() => {
-    const loadDataFromFirestore = async (docRef: NonNullable<typeof userSpecificDocRef>) => {
-      setIsLoading(true);
-      try {
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const firestoreData = docSnap.data() as AppStoreData;
-          
-          // Convert Firestore timestamps to ISO strings if needed
-          setData(firestoreData);
-        } else {
-          // Create a new document with empty arrays
-          await setDoc(docRef, initialEmptyData);
-          setData(initialEmptyData);
-        }
-      } catch (error) {
-        console.error("Error loading data from Firestore:", error);
-        setData(initialEmptyData);
-      } finally {
+  // Function to check if cache is valid
+  const hasCachedData = useCallback((userId: string) => {
+    const cache = globalDataCache.userData[userId];
+    if (!cache) return false;
+    
+    const now = Date.now();
+    return (now - cache.timestamp) < CACHE_DURATION;
+  }, []);
+
+  // Function to load data with caching
+  const loadDataFromFirestore = useCallback(async (docRef: NonNullable<typeof userSpecificDocRef>, userId: string, forceRefresh = false) => {
+    setIsLoading(true);
+    try {
+      // Check cache first if not forcing refresh
+      if (!forceRefresh && hasCachedData(userId)) {
+        console.log("Using cached app data for user:", userId);
+        const cachedData = globalDataCache.userData[userId].data;
+        setData(cachedData);
         setIsLoading(false);
         setIsInitialized(true);
+        return;
       }
-    };
 
+      console.log("Fetching fresh app data from Firestore for user:", userId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const firestoreData = docSnap.data() as AppStoreData;
+        
+        // Update cache
+        globalDataCache.userData[userId] = {
+          data: firestoreData,
+          timestamp: Date.now()
+        };
+        
+        setData(firestoreData);
+      } else {
+        // Create a new document with empty arrays
+        await setDoc(docRef, initialEmptyData);
+        
+        // Update cache with empty data
+        globalDataCache.userData[userId] = {
+          data: initialEmptyData,
+          timestamp: Date.now()
+        };
+        
+        setData(initialEmptyData);
+      }
+    } catch (error) {
+      console.error("Error loading data from Firestore:", error);
+      setData(initialEmptyData);
+    } finally {
+      setIsLoading(false);
+      setIsInitialized(true);
+    }
+  }, [hasCachedData]);
+
+  useEffect(() => {
     // Only attempt to load data if we have a valid user and doc reference
-    if (userSpecificDocRef && !authLoading) {
-      loadDataFromFirestore(userSpecificDocRef);
+    if (userSpecificDocRef && !authLoading && user?.uid) {
+      loadDataFromFirestore(userSpecificDocRef, user.uid);
     } else if (!user && !authLoading) {
       // No user logged in but auth is initialized
       setData(initialEmptyData);
       setIsLoading(false);
       setIsInitialized(true);
     }
-  }, [userSpecificDocRef, authLoading, user]);
+  }, [userSpecificDocRef, authLoading, user, loadDataFromFirestore]);
 
   const saveToFirestore = useCallback(async (newData: AppStoreData) => {
-    if (!userSpecificDocRef) {
+    if (!userSpecificDocRef || !user?.uid) {
       console.warn("Cannot save data: No user logged in");
       return;
     }
     
     try {
       await setDoc(userSpecificDocRef, newData);
+      
+      // Update cache after saving
+      globalDataCache.userData[user.uid] = {
+        data: newData,
+        timestamp: Date.now()
+      };
     } catch (error) {
       console.error("Error saving data to Firestore:", error);
       throw error;
     }
-  }, [userSpecificDocRef]);
+  }, [userSpecificDocRef, user]);
+
+  // Function to manually sync data with Firestore
+  const syncData = useCallback(async () => {
+    if (!userSpecificDocRef || !user?.uid) {
+      console.warn("Cannot sync data: No user logged in");
+      return;
+    }
+    
+    // Force refresh from Firestore
+    await loadDataFromFirestore(userSpecificDocRef, user.uid, true);
+  }, [userSpecificDocRef, user, loadDataFromFirestore]);
 
   // Meal-related functions
   const addMeal = useCallback(async (meal: Omit<MealEntry, 'id'>) => {
@@ -293,6 +364,110 @@ function useAppStoreInternal(): AppStoreContextType {
     }, data.wellnessReports[0]);
   }, [data.wellnessReports]);
 
+  // Calculate today's summary
+  const getTodaySummary = useCallback(() => {
+    const today = new Date();
+    const formattedToday = format(today, 'yyyy-MM-dd');
+    
+    // Sleep hours
+    const todaySleep = getSleepEntryForNightOf(formattedToday);
+    let sleepHours = 0;
+    
+    if (todaySleep) {
+      const start = new Date(todaySleep.startTime);
+      const end = new Date(todaySleep.endTime);
+      sleepHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    }
+    
+    // Today's meals
+    const todayMeals = getMealsOnDate(formattedToday);
+    
+    // Today's checkin
+    const todayCheckin = getCheckinForDate(formattedToday);
+    const activitiesCount = todayCheckin ? todayCheckin.input.todayActivities.length : 0;
+    
+    return {
+      todaySleepHours: sleepHours,
+      todayMealsLogged: todayMeals.length,
+      todayActivitiesLogged: activitiesCount
+    };
+  }, [getSleepEntryForNightOf, getMealsOnDate, getCheckinForDate]);
+  
+  // Generate sample data for testing
+  const generateSampleData = useCallback(async () => {
+    // 현재 날짜 기준의 샘플 데이터 생성
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const dayBefore = new Date(today);
+    dayBefore.setDate(dayBefore.getDate() - 2);
+    
+    // 샘플 식사 데이터
+    const sampleMeals: MealEntry[] = [
+      {
+        id: crypto.randomUUID(),
+        type: 'breakfast',
+        status: 'eaten',
+        dateTime: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 8, 30).toISOString(),
+        description: '토스트와 계란 프라이',
+        quality: 4,
+        foodTypes: ['bread', 'egg'],
+        waterIntake: 0.5
+      },
+      {
+        id: crypto.randomUUID(),
+        type: 'lunch',
+        status: 'eaten',
+        dateTime: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 30).toISOString(),
+        description: '비빔밥',
+        quality: 5,
+        foodTypes: ['rice', 'vegetables', 'meat'],
+        waterIntake: 0.7
+      }
+    ];
+    
+         // 샘플 수면 데이터
+     const sampleSleep: SleepEntry[] = [
+       {
+         id: crypto.randomUUID(),
+         startTime: new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 0).toISOString(),
+         endTime: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 7, 0).toISOString(),
+         quality: 4,
+         wokeUpDuringNight: true,
+         wakeUpCount: 1
+       }
+    ];
+    
+    // 샘플 체크인 데이터
+    const sampleCheckins: WellbeingCheckinRecord[] = [
+      {
+        id: crypto.randomUUID(),
+        dateTime: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 10, 0).toISOString(),
+        date: format(today, 'yyyy-MM-dd'),
+        input: {
+          stressLevel: 4,
+          mainEmotions: ['joy', 'anxiety'],
+          todayActivities: ['exercise', 'relaxation'],
+          conversationPartner: '배우자',
+          spouseConversationTopics: ['everyday', 'future']
+        },
+        output: null
+      }
+    ];
+    
+    const newData: AppStoreData = {
+      ...data,
+      meals: [...data.meals, ...sampleMeals],
+      sleep: [...data.sleep, ...sampleSleep],
+      checkins: [...data.checkins, ...sampleCheckins],
+      wellnessReports: [...data.wellnessReports]
+    };
+    
+    setData(newData);
+    await saveToFirestore(newData);
+  }, [data, saveToFirestore]);
+
   return {
     data,
     isInitialized,
@@ -311,6 +486,11 @@ function useAppStoreInternal(): AppStoreContextType {
     addWellnessReport,
     getAllWellnessReports,
     getLatestWellnessReport,
+    syncData,
+    getTodaySummary,
+    generateSampleData,
+    suggestions,
+    setSuggestions
   };
 }
 

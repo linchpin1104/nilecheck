@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { useSession } from "@/contexts/SessionProvider";
-import { useAuthStore, setAuthUser, clearAuthUser } from "@/lib/auth";
 
 export function AuthInitializer() {
   const { isAuthenticated, user, isLoading, checkSession } = useSession();
@@ -13,17 +12,15 @@ export function AuthInitializer() {
     checkSession();
   }, [checkSession]);
 
-  // 세션 상태가 변경될 때 Zustand 스토어에 동기화
+  // 세션 상태가 변경될 때 처리
   useEffect(() => {
     if (!isLoading) {
-      console.log("[AuthInitializer] AuthStore 동기화:", isAuthenticated ? "인증됨" : "인증되지 않음");
+      console.log("[AuthInitializer] 세션 상태 변경:", isAuthenticated ? "인증됨" : "인증되지 않음");
       
       if (isAuthenticated && user) {
-        // 세션 사용자 정보로 zustand 스토어 업데이트
-        setAuthUser(user);
+        console.log("[AuthInitializer] 인증된 사용자:", user.name);
       } else {
-        // 비인증 상태로 설정
-        clearAuthUser();
+        console.log("[AuthInitializer] 인증되지 않은 상태");
       }
     }
   }, [isAuthenticated, user, isLoading]);

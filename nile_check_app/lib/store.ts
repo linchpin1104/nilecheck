@@ -46,6 +46,7 @@ interface AppState {
   isLoading: boolean;
   suggestions: string[];
   lastSyncTime?: number;
+  lastSessionCheckTime?: number;
   setSuggestions: (suggestions: string[]) => void;
   
   // 식사 기록 관련 메서드
@@ -105,6 +106,7 @@ export const useAppStore = create<AppState>()(
       isLoading: true,
       suggestions: [],
       lastSyncTime: 0,
+      lastSessionCheckTime: 0,
       setSuggestions: (suggestions) => set({ suggestions }),
       
       addMeal: (meal) => {
@@ -271,68 +273,105 @@ export const useAppStore = create<AppState>()(
             return true;
           }
           
-          set({ isLoading: true });
-          
-          // 세션 상태 확인
-          const sessionResponse = await fetch('/api/auth/session');
-          const sessionData = await sessionResponse.json();
-          
-          if (!sessionData.authenticated) {
-            console.error('[Store] 세션이 만료되었습니다. 데이터 동기화를 중단합니다.');
-            set({ isLoading: false });
-            
-            // 세션 만료 시 3초 후 리다이렉트 (사용자 경험 향상)
-            setTimeout(() => {
-              window.location.href = '/login?session_expired=true&callbackUrl=/log-activity';
-            }, 3000);
-            
-            return false;
-          }
-          
           // 마지막 동기화 시간 체크 (5초 이내 중복 요청 방지)
           const now = Date.now();
           const lastSyncTime = get().lastSyncTime || 0;
           
           if (now - lastSyncTime < 5000 && get().isInitialized) {
             console.log('[Store] 최근 5초 이내 동기화 완료, 중복 요청 방지');
-            set({ isLoading: false });
             return true;
           }
           
-          // 식사 데이터 가져오기
-          const mealsResponse = await fetch(`/api/meals?uid=${userId}`);
-          if (!mealsResponse.ok) {
-            throw new Error(`식사 데이터 API 오류: ${mealsResponse.status}`);
-          }
-          const mealsData = await mealsResponse.json();
-          if (mealsData && Array.isArray(mealsData.meals)) {
-            console.log(`[Store] 식사 데이터 ${mealsData.meals.length}건 로드됨`);
-            set({ meals: mealsData.meals });
+          set({ isLoading: true });
+          
+          // 세션 상태 확인 (마지막 체크 후 30초 이내면 스킵)
+          const lastSessionCheckTime = get().lastSessionCheckTime || 0;
+          const isAuthenticated = true;
+          
+          if (now - lastSessionCheckTime > 30000) {
+            console.log('[Store] 세션 상태 확인 중...');
+            try {
+              const sessionResponse = await fetch('/api/auth/session', {
+                headers: {
+                  'Cache-Control': 'no-cache, no-store, must-revalidate',
+                  'Pragma': 'no-cache',
+                  'Expires': '0'
+                }
+              });
+              const sessionData = await sessionResponse.json();
+              
+              set({ lastSessionCheckTime: now });
+              
+              if (!sessionData.authenticated) {
+                console.error('[Store] 세션이 만료되었습니다. 데이터 동기화를 중단합니다.');
+                set({ isLoading: false });
+                
+                // 세션 만료 시 3초 후 리다이렉트 (사용자 경험 향상)
+                setTimeout(() => {
+                  window.location.href = '/login?session_expired=true&callbackUrl=/log-activity';
+                }, 3000);
+                
+                return false;
+              }
+            } catch (error) {
+              console.warn('[Store] 세션 상태 확인 중 오류, 계속 진행합니다:', error);
+              // 세션 체크 실패는 동기화 실패로 간주하지 않음
+            }
+          } else {
+            console.log('[Store] 최근 30초 이내 세션 체크 완료, 중복 요청 방지');
           }
           
-          // 수면 데이터 가져오기
-          const sleepResponse = await fetch(`/api/sleep?uid=${userId}`);
-          if (!sleepResponse.ok) {
-            throw new Error(`수면 데이터 API 오류: ${sleepResponse.status}`);
-          }
-          const sleepData = await sleepResponse.json();
-          if (sleepData && Array.isArray(sleepData.sleep)) {
-            console.log(`[Store] 수면 데이터 ${sleepData.sleep.length}건 로드됨`);
-            set({ sleep: sleepData.sleep });
+          if (isAuthenticated) {
+            // 식사 데이터 가져오기
+            try {
+              const mealsResponse = await fetch(`/api/meals?uid=${userId}`);
+              if (!mealsResponse.ok) {
+                throw new Error(`식사 데이터 API 오류: ${mealsResponse.status}`);
+              }
+              const mealsData = await mealsResponse.json();
+              if (mealsData && Array.isArray(mealsData.meals)) {
+                console.log(`[Store] 식사 데이터 ${mealsData.meals.length}건 로드됨`);
+                set({ meals: mealsData.meals });
+              }
+            } catch (error) {
+              console.error('[Store] 식사 데이터 로드 중 오류:', error);
+              // 개별 데이터 실패는 전체 동기화 실패로 간주하지 않음
+            }
+            
+            // 수면 데이터 가져오기
+            try {
+              const sleepResponse = await fetch(`/api/sleep?uid=${userId}`);
+              if (!sleepResponse.ok) {
+                throw new Error(`수면 데이터 API 오류: ${sleepResponse.status}`);
+              }
+              const sleepData = await sleepResponse.json();
+              if (sleepData && Array.isArray(sleepData.sleep)) {
+                console.log(`[Store] 수면 데이터 ${sleepData.sleep.length}건 로드됨`);
+                set({ sleep: sleepData.sleep });
+              }
+            } catch (error) {
+              console.error('[Store] 수면 데이터 로드 중 오류:', error);
+              // 개별 데이터 실패는 전체 동기화 실패로 간주하지 않음
+            }
+            
+            // 체크인 데이터 가져오기
+            try {
+              const checkinsResponse = await fetch(`/api/checkins?uid=${userId}`);
+              if (!checkinsResponse.ok) {
+                throw new Error(`체크인 데이터 API 오류: ${checkinsResponse.status}`);
+              }
+              const checkinsData = await checkinsResponse.json();
+              if (checkinsData && Array.isArray(checkinsData.checkins)) {
+                console.log(`[Store] 체크인 데이터 ${checkinsData.checkins.length}건 로드됨`);
+                set({ checkins: checkinsData.checkins });
+              }
+            } catch (error) {
+              console.error('[Store] 체크인 데이터 로드 중 오류:', error);
+              // 개별 데이터 실패는 전체 동기화 실패로 간주하지 않음
+            }
           }
           
-          // 체크인 데이터 가져오기
-          const checkinsResponse = await fetch(`/api/checkins?uid=${userId}`);
-          if (!checkinsResponse.ok) {
-            throw new Error(`체크인 데이터 API 오류: ${checkinsResponse.status}`);
-          }
-          const checkinsData = await checkinsResponse.json();
-          if (checkinsData && Array.isArray(checkinsData.checkins)) {
-            console.log(`[Store] 체크인 데이터 ${checkinsData.checkins.length}건 로드됨`);
-            set({ checkins: checkinsData.checkins });
-          }
-          
-          set({ isLoading: false, isInitialized: true, lastSyncTime: Date.now() });
+          set({ isLoading: false, isInitialized: true, lastSyncTime: now });
           console.log('[Store] 데이터 동기화 완료');
           return true;
         } catch (error) {
@@ -496,6 +535,7 @@ export const useAppStore = create<AppState>()(
         isLoading: state.isLoading,
         suggestions: state.suggestions,
         lastSyncTime: state.lastSyncTime,
+        lastSessionCheckTime: state.lastSessionCheckTime,
       }),
     }
   )

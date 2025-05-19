@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Utensils, BedDouble, Info, ListPlus, TrendingUp, TrendingDown, Minus, Lightbulb, RefreshCw } from "lucide-react";
 import Link from "next/link";
@@ -11,7 +11,7 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, 
   ResponsiveContainer, Legend
 } from 'recharts';
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 export default function DashboardPage() {
   const { 
@@ -50,133 +50,158 @@ export default function DashboardPage() {
 
   const [showWelcomePopup, setShowWelcomePopup] = useState(false);
 
-  const router = useRouter();
   const pathname = usePathname();
 
-  // Process data for charts
+  // Memoized flags for data existence checks
+  const hasData = useMemo(() => 
+    isInitialized && (meals.length > 0 || sleep.length > 0 || checkins.length > 0),
+  [isInitialized, meals.length, sleep.length, checkins.length]);
+  
+  // Process data for charts - memoized calculation of sleep statistics
+  const calculateSleepStats = useCallback(() => {
+    if (!hasData) return null;
+    
+    const today = new Date();
+    const lastWeekStart = subWeeks(today, 1);
+    
+    // Current week sleep data
+    const thisWeekSleep = sleep.filter(entry => {
+      const entryDate = new Date(entry.date);
+      return entryDate >= lastWeekStart && entryDate <= today;
+    });
+    
+    // Last week sleep data
+    const twoWeeksAgo = subWeeks(today, 2);
+    const lastWeekSleep = sleep.filter(entry => {
+      const entryDate = new Date(entry.date);
+      return entryDate >= twoWeeksAgo && entryDate < lastWeekStart;
+    });
+    
+    // Calculate averages
+    const currentAvg = thisWeekSleep.length > 0 
+      ? thisWeekSleep.reduce((sum, entry) => {
+          const hours = (new Date(entry.endTime).getTime() - new Date(entry.startTime).getTime()) / (1000 * 60 * 60);
+          return sum + hours;
+        }, 0) / thisWeekSleep.length
+      : 0;
+      
+    const lastAvg = lastWeekSleep.length > 0
+      ? lastWeekSleep.reduce((sum, entry) => {
+          const hours = (new Date(entry.endTime).getTime() - new Date(entry.startTime).getTime()) / (1000 * 60 * 60);
+          return sum + hours;
+        }, 0) / lastWeekSleep.length
+      : 0;
+      
+    const percentChange = lastAvg > 0 
+      ? ((currentAvg - lastAvg) / lastAvg) * 100 
+      : 0;
+      
+    return {
+      averageSleepHours: currentAvg,
+      lastWeekAverage: lastAvg,
+      percentChange
+    };
+  }, [hasData, sleep]);
+  
+  // Memoized calculation of activity data
+  const processActivityData = useCallback(() => {
+    if (!hasData) return [];
+    
+    const activityCounts: Record<string, number> = {};
+    checkins.forEach(checkin => {
+      checkin.input.todayActivities.forEach(activity => {
+        activityCounts[activity] = (activityCounts[activity] || 0) + 1;
+      });
+    });
+    
+    const activityNames: Record<string, string> = {
+      exercise: "운동",
+      relaxation: "휴식",
+      hobbies: "취미",
+      socializing: "사교 활동",
+      householdChores: "집안일",
+      workStudy: "업무/학업",
+      selfCare: "자기 관리",
+      outdoors: "야외 활동",
+      errands: "용무"
+    };
+    
+    return Object.entries(activityCounts)
+      .map(([name, value]) => ({ 
+        name: activityNames[name as keyof typeof activityNames] || name, 
+        value 
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [hasData, checkins]);
+  
+  // Memoized calculation of emotion data
+  const processEmotionData = useCallback(() => {
+    if (!hasData) return [];
+    
+    const emotionCounts: Record<string, number> = {};
+    checkins.forEach(checkin => {
+      checkin.input.mainEmotions.forEach(emotion => {
+        emotionCounts[emotion] = (emotionCounts[emotion] || 0) + 1;
+      });
+    });
+    
+    const emotionNames: Record<string, string> = {
+      joy: "기쁨",
+      sadness: "슬픔",
+      anger: "분노",
+      anxiety: "불안",
+      calmness: "평온",
+      gratitude: "감사",
+      stress: "스트레스",
+      hope: "희망"
+    };
+    
+    return Object.entries(emotionCounts)
+      .map(([name, value]) => ({ 
+        name: emotionNames[name as keyof typeof emotionNames] || name, 
+        value,
+        emoji: getEmotionEmoji(name)
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5); // Get top 5 emotions
+  }, [hasData, checkins]);
+  
+  // Memoized calculation of partner data
+  const processPartnerData = useCallback(() => {
+    if (!hasData) return [];
+    
+    const partnerCounts: Record<string, number> = {};
+    checkins.forEach(checkin => {
+      if (checkin.input.conversationPartner && checkin.input.conversationPartner !== "없음") {
+        partnerCounts[checkin.input.conversationPartner] = (partnerCounts[checkin.input.conversationPartner] || 0) + 1;
+      }
+    });
+    
+    return Object.entries(partnerCounts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 3); // Get top 3 partners
+  }, [hasData, checkins]);
+
+  // Update all stats when data changes
   useEffect(() => {
-    if (isInitialized && (meals.length > 0 || sleep.length > 0 || checkins.length > 0)) {
+    if (hasData) {
       // Calculate sleep statistics
-      const today = new Date();
-      const lastWeekStart = subWeeks(today, 1);
-      
-      // Current week sleep data
-      const thisWeekSleep = sleep.filter(entry => {
-        const entryDate = new Date(entry.date);
-        return entryDate >= lastWeekStart && entryDate <= today;
-      });
-      
-      // Last week sleep data
-      const twoWeeksAgo = subWeeks(today, 2);
-      const lastWeekSleep = sleep.filter(entry => {
-        const entryDate = new Date(entry.date);
-        return entryDate >= twoWeeksAgo && entryDate < lastWeekStart;
-      });
-      
-      // Calculate averages
-      const currentAvg = thisWeekSleep.length > 0 
-        ? thisWeekSleep.reduce((sum, entry) => {
-            const hours = (new Date(entry.endTime).getTime() - new Date(entry.startTime).getTime()) / (1000 * 60 * 60);
-            return sum + hours;
-          }, 0) / thisWeekSleep.length
-        : 0;
-        
-      const lastAvg = lastWeekSleep.length > 0
-        ? lastWeekSleep.reduce((sum, entry) => {
-            const hours = (new Date(entry.endTime).getTime() - new Date(entry.startTime).getTime()) / (1000 * 60 * 60);
-            return sum + hours;
-          }, 0) / lastWeekSleep.length
-        : 0;
-        
-      const percentChange = lastAvg > 0 
-        ? ((currentAvg - lastAvg) / lastAvg) * 100 
-        : 0;
-        
-      setSleepStats({
-        averageSleepHours: currentAvg,
-        lastWeekAverage: lastAvg,
-        percentChange
-      });
+      const stats = calculateSleepStats();
+      if (stats) {
+        setSleepStats(stats);
+      }
       
       // Process activity data for donut chart
-      const activityCounts: Record<string, number> = {};
-      checkins.forEach(checkin => {
-        checkin.input.todayActivities.forEach(activity => {
-          activityCounts[activity] = (activityCounts[activity] || 0) + 1;
-        });
-      });
+      setTopActivities(processActivityData());
       
-      const activityData = Object.entries(activityCounts)
-        .map(([name, value]) => {
-          // Map activity keys to readable names
-          const activityNames: Record<string, string> = {
-            exercise: "운동",
-            relaxation: "휴식",
-            hobbies: "취미",
-            socializing: "사교 활동",
-            householdChores: "집안일",
-            workStudy: "업무/학업",
-            selfCare: "자기 관리",
-            outdoors: "야외 활동",
-            errands: "용무"
-          };
-          return { 
-            name: activityNames[name as keyof typeof activityNames] || name, 
-            value 
-          };
-        })
-        .sort((a, b) => b.value - a.value);
-        
-      setTopActivities(activityData);
-      
-      // Process emotion data for bar chart
-      const emotionCounts: Record<string, number> = {};
-      checkins.forEach(checkin => {
-        checkin.input.mainEmotions.forEach(emotion => {
-          emotionCounts[emotion] = (emotionCounts[emotion] || 0) + 1;
-        });
-      });
-      
-      const emotionNames: Record<string, string> = {
-        joy: "기쁨",
-        sadness: "슬픔",
-        anger: "분노",
-        anxiety: "불안",
-        calmness: "평온",
-        gratitude: "감사",
-        stress: "스트레스",
-        hope: "희망"
-      };
-      
-      const emotionData = Object.entries(emotionCounts)
-        .map(([name, value]) => ({ 
-          name: emotionNames[name as keyof typeof emotionNames] || name, 
-          value,
-          emoji: getEmotionEmoji(name)
-        }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 5); // Get top 5 emotions
-        
-      setTopEmotions(emotionData);
+      // Process emotion data for bar chart  
+      setTopEmotions(processEmotionData());
       
       // Process conversation partner data
-      const partnerCounts: Record<string, number> = {};
-      checkins.forEach(checkin => {
-        if (checkin.input.conversationPartner && checkin.input.conversationPartner !== "없음") {
-          partnerCounts[checkin.input.conversationPartner] = (partnerCounts[checkin.input.conversationPartner] || 0) + 1;
-        }
-      });
-      
-      const partnerData = Object.entries(partnerCounts)
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 3); // Get top 3 partners
-        
-      setTopPartners(partnerData);
-
-      // Suggestions are now generated on button click, not automatically
+      setTopPartners(processPartnerData());
     }
-  }, [isInitialized, sleep, checkins, meals.length]);
+  }, [hasData, calculateSleepStats, processActivityData, processEmotionData, processPartnerData]);
 
   useEffect(() => {
     // 첫 로드 시 데이터가 없으면 웰컴 팝업 표시
@@ -209,16 +234,23 @@ export default function DashboardPage() {
     return emojiMap[emotion] || "😐";
   };
 
-    // Functions for AI suggestion generation moved to the server-side API
+  // Color arrays for charts - memoized to prevent recreating on each render
+  const ACTIVITY_COLORS = useMemo(() => 
+    ['#8884d8', '#83a6ed', '#8dd1e1', '#82ca9d', '#a4de6c', '#d0ed57', '#ffc658'], 
+  []);
   
-  // Color arrays for charts
-  const ACTIVITY_COLORS = ['#8884d8', '#83a6ed', '#8dd1e1', '#82ca9d', '#a4de6c', '#d0ed57', '#ffc658'];
-  const EMOTION_COLORS = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#1A535C', '#FF9F1C'];
-  const PARTNER_COLORS = ['#6C63FF', '#5E72EB', '#FF7F50'];
+  const EMOTION_COLORS = useMemo(() => 
+    ['#FF6B6B', '#4ECDC4', '#FFE66D', '#1A535C', '#FF9F1C'], 
+  []);
   
-  // Handle generating personalized suggestions
-  const handleGenerateSuggestions = async () => {
-    if (suggestionsGenerated || suggestions.length > 0) return;
+  const PARTNER_COLORS = useMemo(() => 
+    ['#6C63FF', '#5E72EB', '#FF7F50'], 
+  []);
+  
+  // Handle generating personalized suggestions - optimized with request debouncing
+  const handleGenerateSuggestions = useCallback(async () => {
+    if (suggestionsGenerated || suggestions.length > 0 || isGeneratingSuggestions) return;
+    
     setIsGeneratingSuggestions(true);
     
     // 데이터가 5개 미만이면 안내 메시지 고정
@@ -242,21 +274,23 @@ export default function DashboardPage() {
       setPersonalizedSuggestions(data.suggestions);
       setSuggestions(data.suggestions); // zustand store에도 저장해 고정시킴
       setSuggestionsGenerated(true);
-    } catch (error) {
+    } catch (err) {
+      console.error('제안 생성 중 오류 발생:', err);
       const fallback = [
         "규칙적인 식사와 충분한 수분 섭취는 에너지 수준을 일정하게 유지하는 데 도움이 됩니다. 하루 8잔의 물을 마시는 것을 목표로 해보세요.",
         "하루 10분씩 명상이나 깊은 호흡 연습을 통해 스트레스 수준을 관리해보세요. 단순한 기법이지만 정신 건강에 큰 영향을 줄 수 있습니다.",
         "주 3회, 30분 이상의 유산소 운동은 기분과 수면의 질을 향상시키는 데 효과적입니다. 걷기부터 시작해보세요."
       ];
       setPersonalizedSuggestions(fallback);
-      setSuggestions(fallback); // 오류 발생 시에도 고정시킴
+      setSuggestions(fallback);
+      setSuggestionsGenerated(true);
     } finally {
       setIsGeneratingSuggestions(false);
     }
-  };
+  }, [suggestionsGenerated, suggestions.length, meals.length, sleep.length, checkins.length, setSuggestions, isGeneratingSuggestions]);
 
   // 새로고침 함수 최적화 (중복 요청 방지)
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     // 이미 로딩 중이면 중복 요청 방지
     if (isRefreshing || isLoading) {
       console.log('이미 데이터 새로고침 중, 중복 요청 방지');
@@ -266,42 +300,43 @@ export default function DashboardPage() {
     try {
       setIsRefreshing(true);
       
-      // 현재는 테스트용 user_default 아이디 사용 (실제로는 인증된 사용자 ID 사용)
-      const userId = 'user_default';
-      
-      // 마지막 동기화 시간 체크 (5초 이내 중복 요청 방지)
-      const now = Date.now();
-      const lastSyncTime = useAppStore.getState().lastSyncTime || 0;
-      
-      if (now - lastSyncTime < 5000 && isInitialized) {
-        console.log('최근 5초 이내 동기화 완료, 중복 요청 방지');
-        setIsRefreshing(false);
-        return;
-      }
-      
-      // 서버에서 데이터 동기화
-      console.log('서버에서 데이터 동기화 시작');
-      const syncResult = await syncData(userId);
-      
-      if (syncResult) {
-        console.log('서버에서 데이터 동기화 성공');
-      } else {
-        console.log('서버에서 데이터 동기화 실패, 로컬 데이터만 사용');
-      }
+      // syncData 메서드 사용해 데이터 새로고침
+      await syncData('user_default');
       
       // 통계 데이터 업데이트
       const todaySummary = getTodaySummary();
       setSummary(todaySummary);
       
+      // 차트 데이터 다시 처리
+      const stats = calculateSleepStats();
+      if (stats) {
+        setSleepStats(stats);
+      }
+      
+      setTopActivities(processActivityData());
+      setTopEmotions(processEmotionData());
+      setTopPartners(processPartnerData());
+      
+      console.log('서버에서 데이터 동기화 성공');
+      
       // 새로고침 상태 해제
       setIsRefreshing(false);
-    } catch (error) {
-      console.error('데이터 새로고침 중 오류 발생:', error);
+    } catch (err) {
+      console.error('데이터 새로고침 중 오류 발생:', err);
       setIsRefreshing(false);
     }
-  };
+  }, [
+    isRefreshing,
+    isLoading,
+    syncData,
+    getTodaySummary,
+    calculateSleepStats,
+    processActivityData,
+    processEmotionData,
+    processPartnerData
+  ]);
 
-  // 라우트 변경 시 자동 데이터 동기화 (isInitialized가 false일 때만)
+  // 라우트 변경 시 자동 데이터 동기화
   useEffect(() => {
     // 이미 동기화 중이면 중복 호출 방지
     if (isLoading || isRefreshing) {
@@ -310,28 +345,19 @@ export default function DashboardPage() {
     }
     
     if (!isInitialized) {
-      const userId = 'user_default'; // 실제 사용자 ID로 대체 필요
-      syncData(userId);
+      // 초기화가 안된 경우 자동 동기화
+      syncData('user_default');
     } else {
       // 이미 초기화되었으나 페이지 이동 시 데이터 새로고침
       // 중복 호출 방지를 위한 디바운스 적용
       const refreshTimeout = setTimeout(() => {
-        // lastSyncTime을 확인하여 5초 내에 이미 동기화했다면 스킵
-        const now = Date.now();
-        const lastSyncTime = useAppStore.getState().lastSyncTime || 0;
-        
-        if (now - lastSyncTime > 5000) {
-          console.log('페이지 이동으로 데이터 새로고침');
-          refreshData();
-        } else {
-          console.log('최근 동기화 완료 (5초 이내), 새로고침 스킵');
-        }
+        console.log('페이지 이동으로 데이터 새로고침');
+        refreshData();
       }, 300);
       
       return () => clearTimeout(refreshTimeout);
     }
-    // eslint-disable-next-line
-  }, [pathname]);
+  }, [pathname, isInitialized, isLoading, isRefreshing, syncData, refreshData]);
 
   // suggestions가 zustand store에 있으면 항상 그 값을 보여주고, 없을 때만 생성 버튼 노출
   useEffect(() => {

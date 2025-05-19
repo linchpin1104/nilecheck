@@ -4,6 +4,22 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { User } from '@/lib/auth-server';
 
+// Add session cache mechanism
+interface SessionCache {
+  data: {
+    user: User | null;
+    isAuthenticated: boolean;
+  } | null;
+  timestamp: number;
+}
+
+// Cache will last for 30 seconds
+const SESSION_CACHE_DURATION = 30 * 1000; // 30 seconds in milliseconds
+let sessionCache: SessionCache = {
+  data: null,
+  timestamp: 0
+};
+
 interface AuthState {
   user: User | null;
   isLoading: boolean;
@@ -33,14 +49,41 @@ export default function useAuth() {
   const router = useRouter();
   
   // 세션 정보 가져오기
-  const fetchSession = useCallback(async () => {
+  const fetchSession = useCallback(async (forceRefresh = false) => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       
+      // Check if we have valid cached data and not forcing a refresh
+      const now = Date.now();
+      if (!forceRefresh && 
+          sessionCache.data && 
+          (now - sessionCache.timestamp < SESSION_CACHE_DURATION)) {
+        // Use cached data
+        console.log('Using cached session data');
+        setState({
+          user: sessionCache.data.user,
+          isAuthenticated: sessionCache.data.isAuthenticated,
+          isLoading: false,
+          error: null
+        });
+        return;
+      }
+      
+      // Proceed with API call if no cache or cache expired
+      console.log('Fetching fresh session data');
       const response = await fetch('/api/auth/session');
       const data = await response.json();
       
       if (data.success && data.authenticated) {
+        // Update cache
+        sessionCache = {
+          data: {
+            user: data.user,
+            isAuthenticated: true
+          },
+          timestamp: now
+        };
+        
         setState({
           user: data.user,
           isAuthenticated: true,
@@ -48,6 +91,15 @@ export default function useAuth() {
           error: null
         });
       } else {
+        // Update cache (not authenticated)
+        sessionCache = {
+          data: {
+            user: null,
+            isAuthenticated: false
+          },
+          timestamp: now
+        };
+        
         setState({
           user: null,
           isAuthenticated: false,
@@ -82,7 +134,8 @@ export default function useAuth() {
       const data = await response.json();
       
       if (data.success) {
-        await fetchSession();
+        // Force refresh session cache after login
+        await fetchSession(true);
         return { success: true, message: data.message };
       } else {
         setState(prev => ({ 
@@ -111,6 +164,12 @@ export default function useAuth() {
       await fetch('/api/auth/logout', {
         method: 'POST'
       });
+      
+      // Clear session cache after logout
+      sessionCache = {
+        data: null,
+        timestamp: 0
+      };
       
       setState({
         user: null,
@@ -146,7 +205,8 @@ export default function useAuth() {
       const data = await response.json();
       
       if (data.success) {
-        await fetchSession();
+        // Force refresh session cache after registration
+        await fetchSession(true);
         return { success: true, message: data.message };
       } else {
         setState(prev => ({ 
@@ -177,6 +237,6 @@ export default function useAuth() {
     login,
     logout,
     register,
-    refreshSession: fetchSession
+    refreshSession: () => fetchSession(true)  // Added option to force refresh
   };
 } 

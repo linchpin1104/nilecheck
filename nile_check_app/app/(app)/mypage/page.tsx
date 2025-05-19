@@ -1,15 +1,18 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Settings, User, LogOut, Mail, Phone, CalendarDays } from "lucide-react";
 import { useRouter } from "next/navigation";
 import useAuth from "@/hooks/useAuth";
+import { useAppStore } from "@/lib/store";
 
 export default function MyPage() {
   const router = useRouter();
-  const { user, isLoading, logout } = useAuth();
+  const { user, isLoading: authLoading, logout } = useAuth();
+  const { meals, sleep, checkins, isInitialized } = useAppStore();
+  
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -25,7 +28,15 @@ export default function MyPage() {
     }
   });
   
-  // 인증된 사용자 정보로 상태 업데이트
+  // Calculate stats with memoization
+  const statsData = useMemo(() => ({
+    totalMeals: meals.length,
+    totalSleep: sleep.length,
+    totalCheckins: checkins.length,
+    wellnessReports: Math.floor(checkins.length / 4) // Just an example calculation
+  }), [meals.length, sleep.length, checkins.length]);
+  
+  // 인증된 사용자 정보로 상태 업데이트 - 최적화
   useEffect(() => {
     if (user) {
       setUserData(prevData => ({
@@ -54,11 +65,17 @@ export default function MyPage() {
     }
   };
   
+  // 로딩 상태 최적화
+  const isPageLoading = authLoading || !isInitialized;
+  
   // 로딩 중 표시
-  if (isLoading) {
+  if (isPageLoading) {
     return (
       <div className="container mx-auto py-8 px-4 flex justify-center items-center min-h-[50vh]">
-        <p className="text-lg">로딩 중...</p>
+        <div className="flex flex-col items-center">
+          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2"></div>
+          <p className="text-lg">정보를 불러오는 중...</p>
+        </div>
       </div>
     );
   }
@@ -142,19 +159,19 @@ export default function MyPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-slate-50 p-4 rounded-lg">
               <p className="text-sm text-muted-foreground">총 식사 기록</p>
-              <p className="text-2xl font-bold">24</p>
+              <p className="text-2xl font-bold">{statsData.totalMeals}</p>
             </div>
             <div className="bg-slate-50 p-4 rounded-lg">
               <p className="text-sm text-muted-foreground">총 수면 기록</p>
-              <p className="text-2xl font-bold">12</p>
+              <p className="text-2xl font-bold">{statsData.totalSleep}</p>
             </div>
             <div className="bg-slate-50 p-4 rounded-lg">
               <p className="text-sm text-muted-foreground">총 체크인</p>
-              <p className="text-2xl font-bold">8</p>
+              <p className="text-2xl font-bold">{statsData.totalCheckins}</p>
             </div>
             <div className="bg-slate-50 p-4 rounded-lg">
               <p className="text-sm text-muted-foreground">웰니스 리포트</p>
-              <p className="text-2xl font-bold">2</p>
+              <p className="text-2xl font-bold">{statsData.wellnessReports}</p>
             </div>
           </div>
         </CardContent>
