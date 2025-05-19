@@ -1,8 +1,8 @@
 "use client";
 
-import { createContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useState, useEffect, ReactNode, useContext } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { User } from "@/types";
+import { User } from "@/lib/auth-server";
 
 export type SessionContextType = {
   user: User | null;
@@ -17,7 +17,7 @@ export type SessionContextType = {
 
 export const SessionContext = createContext<SessionContextType | null>(null);
 
-export default function SessionProvider({ children }: { children: ReactNode }) {
+export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -81,8 +81,15 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
   // 페이지 변경 시 세션 재검사 (미들웨어 헤더 확인)
   useEffect(() => {
     // 미들웨어에서 설정한 인증 헤더 확인
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const checkAuthHeaders = async () => {
       try {
+        // 현재 경로가 없으면 무시
+        if (!pathname) {
+          console.log('[SessionProvider] 경로 정보가 없어 헤더 검사 생략');
+          return;
+        }
+        
         // 현재 경로에 대한 HEAD 요청을 보내 헤더 확인
         const response = await fetch(pathname, {
           method: 'HEAD',
@@ -162,4 +169,15 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
       {children}
     </SessionContext.Provider>
   );
-} 
+}
+
+// 세션 컨텍스트 사용 훅
+export function useSession() {
+  const context = useContext(SessionContext);
+  if (!context) {
+    throw new Error("useSession must be used within a SessionProvider");
+  }
+  return context;
+}
+
+export default SessionProvider; 
