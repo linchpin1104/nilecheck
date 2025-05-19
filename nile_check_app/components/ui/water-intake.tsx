@@ -18,6 +18,7 @@ export function WaterIntake({
   className,
 }: WaterIntakeProps) {
   const cupValues = Array.from({ length: max }, (_, i) => i + 1);
+  const ML_PER_CUP = 200; // 1잔 = 200ml로 정의
 
   return (
     <div className={cn("flex flex-col space-y-2", className)}>
@@ -65,7 +66,7 @@ export function WaterIntake({
         ))}
       </div>
       <p className="text-center text-sm text-muted-foreground">
-        {value}잔의 물 ({Math.round(value * 200)}ml)
+        {value}잔의 물 ({value * ML_PER_CUP}ml)
       </p>
     </div>
   );

@@ -149,7 +149,7 @@ export function ActivitySummary({ date, meals, sleep, checkin }: ActivitySummary
                   />
                 ))}
                 <span className="ml-2 text-sm">
-                  {totalWaterIntake.toFixed(1)}L ({Math.round(totalWaterIntake * 5)}잔)
+                  {totalWaterIntake.toFixed(1)}잔 ({Math.round(totalWaterIntake * 0.2)}L)
                 </span>
               </div>
             ) : (

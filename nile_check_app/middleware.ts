@@ -44,27 +44,40 @@ export async function middleware(request: NextRequest) {
   
   // Allow access to API endpoints (handled by the API routes themselves)
   if (path.startsWith('/api/')) {
-    return NextResponse.next();
+    // API 요청엔 인증 쿠키가 항상 전달되도록 함
+    const response = NextResponse.next();
+    return response;
   }
   
   // Get authentication token from cookies
   const token = request.cookies.get(TOKEN_COOKIE_NAME)?.value;
   let isAuthenticated = false;
+  let userId = '';
   
   // Verify JWT token if it exists
   if (token) {
     try {
       const verified = await jwtVerify(token, JWT_SECRET);
       isAuthenticated = !!verified.payload.user;
+      userId = typeof verified.payload.user === 'string' 
+        ? verified.payload.user 
+        : verified.payload.user?.id || '';
+      
+      console.log(`[Middleware] Token verified: user=${userId}, auth=${isAuthenticated}`);
     } catch (error) {
-      console.error('Invalid auth token:', error);
+      console.error('[Middleware] Invalid auth token:', error);
     }
+  } else {
+    console.log('[Middleware] No auth token found in cookies');
   }
   
   // Semi-protected paths can be accessed without login
   if (isSemiProtectedPath) {
     const response = NextResponse.next();
     response.headers.set('x-auth-status', isAuthenticated ? 'authenticated' : 'unauthenticated');
+    if (isAuthenticated && userId) {
+      response.headers.set('x-user-id', userId);
+    }
     return response;
   }
   
@@ -74,11 +87,18 @@ export async function middleware(request: NextRequest) {
     const params = new URLSearchParams();
     params.set('callbackUrl', path);
     
+    console.log(`[Middleware] Redirecting to login from protected path: ${path}`);
     return NextResponse.redirect(new URL(`/login?${params.toString()}`, request.url));
   }
   
   // Otherwise, proceed with the request
-  return NextResponse.next();
+  const response = NextResponse.next();
+  // 모든 요청에 인증 상태 헤더 추가
+  response.headers.set('x-auth-status', isAuthenticated ? 'authenticated' : 'unauthenticated');
+  if (isAuthenticated && userId) {
+    response.headers.set('x-user-id', userId);
+  }
+  return response;
 }
 
 // Specify which paths this middleware should run on
