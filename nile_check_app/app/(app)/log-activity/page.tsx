@@ -49,6 +49,11 @@ export default function LogActivityPage() {
           console.log('[LogActivity] 데이터 동기화 완료');
         } else {
           console.error('[LogActivity] 데이터 동기화 실패');
+          toast({
+            title: "데이터 로드 실패",
+            description: "데이터를 불러오는데 문제가 발생했습니다. 새로고침을 시도해주세요.",
+            variant: "destructive"
+          });
         }
         setIsRefreshing(false);
       });
@@ -59,7 +64,7 @@ export default function LogActivityPage() {
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [isAuthenticated, user, syncData]);
+  }, [isAuthenticated, user, syncData, toast]);
 
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedMealType, setSelectedMealType] = useState<string | null>(null);
@@ -108,60 +113,83 @@ export default function LogActivityPage() {
 
   // Fetch data for selected date
   useEffect(() => {
-    const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    const dateMeals = getMealsOnDate(dateStr);
-    const dateSleep = getSleepEntryForNightOf(dateStr);
-    const dateCheckin = getCheckinForDate(dateStr);
-    
-    setDateRecord({
-      meals: dateMeals,
-      sleep: dateSleep,
-      checkin: dateCheckin
-    });
+    // 데이터 가져오기 전 로딩 상태 설정
+    setIsRefreshing(true);
+
+    try {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const dateMeals = getMealsOnDate(dateStr);
+      const dateSleep = getSleepEntryForNightOf(dateStr);
+      const dateCheckin = getCheckinForDate(dateStr);
+      
+      console.log(`[LogActivity] 날짜 ${dateStr}의 데이터 로드:`, { 
+        meals: dateMeals.length, 
+        sleep: dateSleep ? '있음' : '없음', 
+        checkin: dateCheckin ? '있음' : '없음' 
+      });
+      
+      setDateRecord({
+        meals: dateMeals,
+        sleep: dateSleep,
+        checkin: dateCheckin
+      });
+    } catch (error) {
+      console.error('[LogActivity] 날짜 데이터 로드 오류:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
 
     // Reset edit modes when changing date
     setSleepEditMode(false);
     setCheckinEditMode(false);
     
     // Initialize form with existing data or reset if none
-    if (dateSleep) {
-      // Calculate bedtime from startTime
-      const startTime = new Date(dateSleep.startTime);
-      setBedtime(`${startTime.getHours().toString().padStart(2, '0')}:${startTime.getMinutes().toString().padStart(2, '0')}`);
+    try {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const dateSleep = getSleepEntryForNightOf(dateStr);
       
-      // Calculate sleep duration
-      const sleepHours = (new Date(dateSleep.endTime).getTime() - startTime.getTime()) / (1000 * 60 * 60);
-      setSleepDuration(sleepHours.toFixed(1));
+      if (dateSleep) {
+        // Calculate bedtime from startTime
+        const startTime = new Date(dateSleep.startTime);
+        setBedtime(`${startTime.getHours().toString().padStart(2, '0')}:${startTime.getMinutes().toString().padStart(2, '0')}`);
+        
+        // Calculate sleep duration
+        const sleepHours = (new Date(dateSleep.endTime).getTime() - startTime.getTime()) / (1000 * 60 * 60);
+        setSleepDuration(sleepHours.toFixed(1));
+        
+        setSleepQuality(dateSleep.quality);
+        setWokeUpDuringNight(dateSleep.wokeUpDuringNight);
+        setWakeUpCount(dateSleep.wakeUpCount);
+      } else {
+        // Reset sleep form
+        setBedtime("22:00");
+        setSleepDuration("8.0");
+        setSleepQuality(3);
+        setWokeUpDuringNight(false);
+        setWakeUpCount(0);
+      }
       
-      setSleepQuality(dateSleep.quality);
-      setWokeUpDuringNight(dateSleep.wokeUpDuringNight);
-      setWakeUpCount(dateSleep.wakeUpCount);
-    } else {
-      // Reset sleep form
-      setBedtime("22:00");
-      setSleepDuration("8.0");
-      setSleepQuality(3);
-      setWokeUpDuringNight(false);
-      setWakeUpCount(0);
-    }
-    
-    if (dateCheckin) {
-      setStressLevel(dateCheckin.input.stressLevel);
-      setSelectedEmotions(dateCheckin.input.mainEmotions);
-      setOtherEmotionText(dateCheckin.input.otherEmotionDetail || "");
-      setTodayActivities(dateCheckin.input.todayActivities);
-      setConversationPartner(dateCheckin.input.conversationPartner || null);
-      setSpouseConversationTopics(dateCheckin.input.spouseConversationTopics || []);
-      setOtherSpouseTopicText(dateCheckin.input.otherSpouseTopicDetail || "");
-    } else {
-      // Reset checkin form
-      setStressLevel(5);
-      setSelectedEmotions([]);
-      setOtherEmotionText("");
-      setTodayActivities([]);
-      setConversationPartner(null);
-      setSpouseConversationTopics([]);
-      setOtherSpouseTopicText("");
+      const dateCheckin = getCheckinForDate(dateStr);
+      if (dateCheckin) {
+        setStressLevel(dateCheckin.input.stressLevel);
+        setSelectedEmotions(dateCheckin.input.mainEmotions);
+        setOtherEmotionText(dateCheckin.input.otherEmotionDetail || "");
+        setTodayActivities(dateCheckin.input.todayActivities);
+        setConversationPartner(dateCheckin.input.conversationPartner || null);
+        setSpouseConversationTopics(dateCheckin.input.spouseConversationTopics || []);
+        setOtherSpouseTopicText(dateCheckin.input.otherSpouseTopicDetail || "");
+      } else {
+        // Reset checkin form
+        setStressLevel(5);
+        setSelectedEmotions([]);
+        setOtherEmotionText("");
+        setTodayActivities([]);
+        setConversationPartner(null);
+        setSpouseConversationTopics([]);
+        setOtherSpouseTopicText("");
+      }
+    } catch (error) {
+      console.error('[LogActivity] 폼 초기화 중 오류:', error);
     }
     
     // Reset meal selection when date changes
@@ -184,23 +212,53 @@ export default function LogActivityPage() {
 
   // 데이터 자동 새로고침 함수
   const refreshData = async () => {
-    if (isAuthenticated && user) {
-      setIsRefreshing(true);
-      console.log('[LogActivity] 데이터 자동 새로고침 중...');
-      await syncData(user.id);
-      
-      // 선택된 날짜의 데이터 다시 불러오기
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const dateMeals = getMealsOnDate(dateStr);
-      const dateSleep = getSleepEntryForNightOf(dateStr);
-      const dateCheckin = getCheckinForDate(dateStr);
-      
-      setDateRecord({
-        meals: dateMeals,
-        sleep: dateSleep,
-        checkin: dateCheckin
+    if (!isAuthenticated || !user) {
+      toast({
+        title: "로그인이 필요합니다",
+        description: "데이터를 새로고침하려면 로그인해주세요.",
+        variant: "destructive"
       });
+      return;
+    }
+
+    setIsRefreshing(true);
+    console.log('[LogActivity] 데이터 자동 새로고침 중...');
+    
+    try {
+      const success = await syncData(user.id);
       
+      if (success) {
+        // 선택된 날짜의 데이터 다시 불러오기
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        const dateMeals = getMealsOnDate(dateStr);
+        const dateSleep = getSleepEntryForNightOf(dateStr);
+        const dateCheckin = getCheckinForDate(dateStr);
+        
+        setDateRecord({
+          meals: dateMeals,
+          sleep: dateSleep,
+          checkin: dateCheckin
+        });
+        
+        toast({
+          title: "데이터 새로고침 완료",
+          description: "최신 데이터를 성공적으로 불러왔습니다.",
+        });
+      } else {
+        toast({
+          title: "데이터 새로고침 실패",
+          description: "서버에서 데이터를 불러오는데 실패했습니다.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('[LogActivity] 데이터 새로고침 중 오류:', error);
+      toast({
+        title: "오류 발생",
+        description: "데이터 새로고침 중 오류가 발생했습니다.",
+        variant: "destructive"
+      });
+    } finally {
       setIsRefreshing(false);
     }
   };
@@ -243,17 +301,32 @@ export default function LogActivityPage() {
       date: dateStr
     };
     
-    addSleepEntry(sleepEntry);
-    setSleepEditMode(false);
+    setIsRefreshing(true);
     
-    // 저장 완료 알림 및 데이터 갱신
-    toast({
-      title: "수면 기록 저장 완료",
-      description: "수면 기록이 성공적으로 저장되었습니다.",
-    });
-    
-    // 데이터 새로고침
-    await refreshData();
+    try {
+      // 수면 데이터 추가
+      addSleepEntry(sleepEntry);
+      setSleepEditMode(false);
+      
+      // 저장 완료 알림
+      toast({
+        title: "수면 기록 저장 완료",
+        description: "수면 기록이 성공적으로 저장되었습니다.",
+      });
+      
+      // 데이터 새로고침
+      await new Promise(resolve => setTimeout(resolve, 300)); // 서버 저장 시간 허용
+      await refreshData();
+    } catch (error) {
+      console.error('[LogActivity] 수면 데이터 저장 오류:', error);
+      toast({
+        title: "수면 기록 저장 오류",
+        description: "수면 기록 저장 중 문제가 발생했습니다. 다시 시도해주세요.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   // Save checkin data
@@ -277,17 +350,32 @@ export default function LogActivityPage() {
       otherSpouseTopicDetail: otherSpouseTopicText,
     };
     
-    addCheckin(checkinInput, selectedDate);
-    setCheckinEditMode(false);
+    setIsRefreshing(true);
     
-    // 저장 완료 알림 및 데이터 갱신
-    toast({
-      title: "체크인 기록 저장 완료",
-      description: "웰빙 체크인 기록이 성공적으로 저장되었습니다.",
-    });
-    
-    // 데이터 새로고침
-    await refreshData();
+    try {
+      // 체크인 데이터 추가
+      addCheckin(checkinInput, selectedDate);
+      setCheckinEditMode(false);
+      
+      // 저장 완료 알림
+      toast({
+        title: "체크인 기록 저장 완료",
+        description: "웰빙 체크인 기록이 성공적으로 저장되었습니다.",
+      });
+      
+      // 데이터 새로고침
+      await new Promise(resolve => setTimeout(resolve, 300)); // 서버 저장 시간 허용
+      await refreshData();
+    } catch (error) {
+      console.error('[LogActivity] 체크인 데이터 저장 오류:', error);
+      toast({
+        title: "체크인 기록 저장 오류",
+        description: "체크인 기록 저장 중 문제가 발생했습니다. 다시 시도해주세요.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   // Save meal data
@@ -333,19 +421,34 @@ export default function LogActivityPage() {
       foodTypes: selectedFoodTypes.length > 0 ? selectedFoodTypes : undefined,
     };
     
-    addMeal(meal);
-    setSelectedMealType(null);
-    setMealStatus(null);
-    resetMealForm();
+    setIsRefreshing(true);
     
-    // 저장 완료 알림 및 데이터 갱신
-    toast({
-      title: "식사 기록 저장 완료",
-      description: "식사 기록이 성공적으로 저장되었습니다.",
-    });
-    
-    // 데이터 새로고침
-    await refreshData();
+    try {
+      // 식사 데이터 추가
+      addMeal(meal);
+      setSelectedMealType(null);
+      setMealStatus(null);
+      resetMealForm();
+      
+      // 저장 완료 알림
+      toast({
+        title: "식사 기록 저장 완료",
+        description: "식사 기록이 성공적으로 저장되었습니다.",
+      });
+      
+      // 데이터 새로고침
+      await new Promise(resolve => setTimeout(resolve, 300)); // 서버 저장 시간 허용
+      await refreshData();
+    } catch (error) {
+      console.error('[LogActivity] 식사 데이터 저장 오류:', error);
+      toast({
+        title: "식사 기록 저장 오류",
+        description: "식사 기록 저장 중 문제가 발생했습니다. 다시 시도해주세요.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
   };
   
   const emotionOptions = [
@@ -520,12 +623,23 @@ export default function LogActivityPage() {
           </TabsList>
           
           <TabsContent value="summary">
-            <ActivitySummary 
-              date={selectedDate}
-              meals={dateRecord.meals}
-              sleep={dateRecord.sleep}
-              checkin={dateRecord.checkin}
-            />
+            {isRefreshing ? (
+              <Card>
+                <CardContent className="pt-6 flex justify-center items-center h-48">
+                  <div className="flex flex-col items-center">
+                    <RefreshCw className="h-8 w-8 animate-spin text-primary mb-2" />
+                    <p className="text-muted-foreground">데이터를 불러오는 중...</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <ActivitySummary 
+                date={selectedDate}
+                meals={dateRecord.meals}
+                sleep={dateRecord.sleep}
+                checkin={dateRecord.checkin}
+              />
+            )}
           </TabsContent>
           
           <TabsContent value="meals">
@@ -533,6 +647,15 @@ export default function LogActivityPage() {
               <Card>
                 <CardContent className="pt-6 text-center">
                   <p className="text-muted-foreground">미래 날짜에는 기록할 수 없습니다.</p>
+                </CardContent>
+              </Card>
+            ) : isRefreshing ? (
+              <Card>
+                <CardContent className="pt-6 flex justify-center items-center h-48">
+                  <div className="flex flex-col items-center">
+                    <RefreshCw className="h-8 w-8 animate-spin text-primary mb-2" />
+                    <p className="text-muted-foreground">데이터를 불러오는 중...</p>
+                  </div>
                 </CardContent>
               </Card>
             ) : (
@@ -753,6 +876,15 @@ export default function LogActivityPage() {
                   <p className="text-muted-foreground">미래 날짜에는 기록할 수 없습니다.</p>
                 </CardContent>
               </Card>
+            ) : isRefreshing ? (
+              <Card>
+                <CardContent className="pt-6 flex justify-center items-center h-48">
+                  <div className="flex flex-col items-center">
+                    <RefreshCw className="h-8 w-8 animate-spin text-primary mb-2" />
+                    <p className="text-muted-foreground">데이터를 불러오는 중...</p>
+                  </div>
+                </CardContent>
+              </Card>
             ) : (
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
@@ -934,6 +1066,15 @@ export default function LogActivityPage() {
               <Card>
                 <CardContent className="pt-6 text-center">
                   <p className="text-muted-foreground">미래 날짜에는 기록할 수 없습니다.</p>
+                </CardContent>
+              </Card>
+            ) : isRefreshing ? (
+              <Card>
+                <CardContent className="pt-6 flex justify-center items-center h-48">
+                  <div className="flex flex-col items-center">
+                    <RefreshCw className="h-8 w-8 animate-spin text-primary mb-2" />
+                    <p className="text-muted-foreground">데이터를 불러오는 중...</p>
+                  </div>
                 </CardContent>
               </Card>
             ) : (

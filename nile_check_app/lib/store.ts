@@ -73,9 +73,23 @@ interface AppState {
 
 // 사용자 정보 가져오기 함수 추가
 const getUserInfo = (): { uid: string } => {
-  // @ts-expect-error - 런타임에는 authStore가 로드됨
-  const authStore = window.authStore || { user: { uid: 'user_default' } };
-  return authStore.user || { uid: 'user_default' };
+  try {
+    // @ts-expect-error - 런타임에는 authStore가 로드됨
+    const authStore = window.authStore || { getState: () => ({ currentUser: null }) };
+    const user = typeof authStore.getState === 'function' 
+      ? authStore.getState().currentUser 
+      : authStore.user;
+      
+    if (!user) {
+      console.warn('[Store] 사용자 정보를 찾을 수 없습니다.');
+      return { uid: 'user_default' };
+    }
+    
+    return { uid: user.id || 'user_default' };
+  } catch (e) {
+    console.error('[Store] 사용자 정보 가져오기 실패:', e);
+    return { uid: 'user_default' };
+  }
 };
 
 export const useAppStore = create<AppState>()(
@@ -246,8 +260,27 @@ export const useAppStore = create<AppState>()(
           console.log(`[Store] 사용자 데이터 동기화 시작 - 사용자 ID: ${userId}`);
           set({ isLoading: true });
           
+          // 세션 상태 확인
+          const sessionResponse = await fetch('/api/auth/session');
+          const sessionData = await sessionResponse.json();
+          
+          if (!sessionData.authenticated) {
+            console.error('[Store] 세션이 만료되었습니다. 데이터 동기화를 중단합니다.');
+            set({ isLoading: false });
+            
+            // 세션 만료 시 3초 후 리다이렉트 (사용자 경험 향상)
+            setTimeout(() => {
+              window.location.href = '/login?session_expired=true&callbackUrl=/log-activity';
+            }, 3000);
+            
+            return false;
+          }
+          
           // 식사 데이터 가져오기
           const mealsResponse = await fetch(`/api/meals?uid=${userId}`);
+          if (!mealsResponse.ok) {
+            throw new Error(`식사 데이터 API 오류: ${mealsResponse.status}`);
+          }
           const mealsData = await mealsResponse.json();
           if (mealsData && Array.isArray(mealsData.meals)) {
             console.log(`[Store] 식사 데이터 ${mealsData.meals.length}건 로드됨`);
@@ -256,6 +289,9 @@ export const useAppStore = create<AppState>()(
           
           // 수면 데이터 가져오기
           const sleepResponse = await fetch(`/api/sleep?uid=${userId}`);
+          if (!sleepResponse.ok) {
+            throw new Error(`수면 데이터 API 오류: ${sleepResponse.status}`);
+          }
           const sleepData = await sleepResponse.json();
           if (sleepData && Array.isArray(sleepData.sleep)) {
             console.log(`[Store] 수면 데이터 ${sleepData.sleep.length}건 로드됨`);
@@ -264,6 +300,9 @@ export const useAppStore = create<AppState>()(
           
           // 체크인 데이터 가져오기
           const checkinsResponse = await fetch(`/api/checkins?uid=${userId}`);
+          if (!checkinsResponse.ok) {
+            throw new Error(`체크인 데이터 API 오류: ${checkinsResponse.status}`);
+          }
           const checkinsData = await checkinsResponse.json();
           if (checkinsData && Array.isArray(checkinsData.checkins)) {
             console.log(`[Store] 체크인 데이터 ${checkinsData.checkins.length}건 로드됨`);
