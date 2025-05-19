@@ -344,20 +344,23 @@ export default function DashboardPage() {
       return;
     }
     
-    if (!isInitialized) {
-      // 초기화가 안된 경우 자동 동기화
-      syncData('user_default');
-    } else {
-      // 이미 초기화되었으나 페이지 이동 시 데이터 새로고침
-      // 중복 호출 방지를 위한 디바운스 적용
-      const refreshTimeout = setTimeout(() => {
-        console.log('페이지 이동으로 데이터 새로고침');
-        refreshData();
-      }, 300);
+    // 강제 데이터 동기화 수행 (로그인 직후 항상 데이터를 새로 불러오도록)
+    console.log('대시보드 페이지 로드 - 데이터 동기화 시작');
+    setIsRefreshing(true);
+    
+    // syncData 호출 시 항상 사용자 기본값 전달
+    syncData('user_default')
+      .then(() => {
+        console.log('대시보드 데이터 동기화 완료');
+        setIsRefreshing(false);
+      })
+      .catch(err => {
+        console.error('대시보드 데이터 동기화 실패:', err);
+        setIsRefreshing(false);
+      });
       
-      return () => clearTimeout(refreshTimeout);
-    }
-  }, [pathname, isInitialized, isLoading, isRefreshing, syncData, refreshData]);
+    // 의존성 배열에서 isInitialized 제거하여 항상 새로 데이터 불러오게 함
+  }, [pathname, isLoading, isRefreshing, syncData]);
 
   // suggestions가 zustand store에 있으면 항상 그 값을 보여주고, 없을 때만 생성 버튼 노출
   useEffect(() => {
