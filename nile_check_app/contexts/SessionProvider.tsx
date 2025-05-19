@@ -22,7 +22,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     try {
       console.log("[SessionProvider] 세션 상태 확인 중...");
-      const response = await fetch("/api/auth/session");
+      const response = await fetch("/api/auth/session", {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        },
+        cache: 'no-store'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Session API 응답 오류: ${response.status}`);
+      }
+      
       const data = await response.json();
       
       if (data.success && data.authenticated) {

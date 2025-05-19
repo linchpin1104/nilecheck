@@ -100,15 +100,22 @@ function LoginForm() {
       if (result.success) {
         console.log("로그인 성공, 세션 갱신 후 페이지 이동");
         
-        // 세션 정보 갱신
-        await checkSession();
-        
-        // 모든 사용자에 대해 window.location.href 사용
-        // router.push() 대신 직접 이동하여 문제 우회
-        if (callbackUrl) {
-          window.location.href = callbackUrl;
-        } else {
-          window.location.href = "/dashboard";
+        try {
+          // 세션 정보 갱신
+          await checkSession();
+          
+          // 강제 페이지 이동으로 변경하여 라우팅 문제 해결
+          setTimeout(() => {
+            if (callbackUrl) {
+              window.location.href = callbackUrl;
+            } else {
+              window.location.href = "/dashboard";
+            }
+          }, 100); // 짧은 지연 후 리다이렉트하여 세션 체크가 완료될 시간 확보
+        } catch (err) {
+          console.error("세션 갱신 중 오류:", err);
+          setError("세션 갱신 중 오류가 발생했습니다. 다시 시도해주세요.");
+          setIsSubmitting(false);
         }
         return;
       } else {

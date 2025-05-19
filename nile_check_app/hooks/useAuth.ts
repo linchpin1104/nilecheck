@@ -14,7 +14,7 @@ interface SessionCache {
 }
 
 // Cache will last for 30 seconds
-const SESSION_CACHE_DURATION = 30 * 1000; // 30 seconds in milliseconds
+const SESSION_CACHE_DURATION = 10 * 1000; // 10 seconds in milliseconds
 let sessionCache: SessionCache = {
   data: null,
   timestamp: 0
@@ -71,7 +71,19 @@ export default function useAuth() {
       
       // Proceed with API call if no cache or cache expired
       console.log('Fetching fresh session data');
-      const response = await fetch('/api/auth/session');
+      const response = await fetch('/api/auth/session', {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        },
+        cache: 'no-store'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Session API responded with status: ${response.status}`);
+      }
+      
       const data = await response.json();
       
       if (data.success && data.authenticated) {

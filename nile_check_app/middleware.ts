@@ -23,11 +23,14 @@ export async function middleware(request: NextRequest) {
                       path === '/direct-login' ||
                       path.startsWith('/api/auth/');
                       
-  // Define welcome paths that are always accessible but show login prompt
-  const isWelcomePath = path === '/' || 
-                      path === '/log-activity' || 
-                      path === '/dashboard' ||
-                      path === '/mypage';
+  // Define semi-protected paths (dashboard, log-activity are accessible without login but others redirect)
+  const isSemiProtectedPath = path === '/dashboard' ||
+                           path === '/log-activity';
+  
+  // Define fully protected paths
+  const isProtectedPath = path === '/mypage' ||
+                          path === '/solutions' ||
+                          path.includes('/weekly-report');
   
   // Special handling for the home page - redirect to log-activity
   if (path === '/') {
@@ -58,16 +61,15 @@ export async function middleware(request: NextRequest) {
     }
   }
   
-  // Allow welcome paths to be accessible but with login prompt (handled by client components)
-  if (isWelcomePath) {
-    // Add authentication status to the response headers for client-side handling
+  // Semi-protected paths can be accessed without login
+  if (isSemiProtectedPath) {
     const response = NextResponse.next();
     response.headers.set('x-auth-status', isAuthenticated ? 'authenticated' : 'unauthenticated');
     return response;
   }
   
   // If not authenticated and trying to access a protected route, redirect to login
-  if (!isAuthenticated) {
+  if (!isAuthenticated && isProtectedPath) {
     // Store the original path for redirecting back after login
     const params = new URLSearchParams();
     params.set('callbackUrl', path);
