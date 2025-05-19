@@ -78,26 +78,43 @@ interface AppState {
 // 사용자 정보 가져오기 함수 추가
 const getUserInfo = (): { uid: string } => {
   try {
-    // @ts-expect-error - 런타임에는 authStore가 로드됨
-    const authStore = window.authStore || { getState: () => ({ currentUser: null }) };
-    const user = typeof authStore.getState === 'function' 
-      ? authStore.getState().currentUser 
-      : authStore.user;
-      
-    if (!user) {
-      // 로그인 후에도 authStore에서 사용자 정보를 가져오지 못하는 경우가 있으므로
-      // 세션 쿠키 존재 여부를 확인하여 더 안정적인 인증 확인
-      const hasCookie = document.cookie.includes('nile-check-auth=');
-      if (hasCookie) {
-        console.log('[Store] 인증 쿠키는 있지만 사용자 정보가 없어 기본값 사용');
-        return { uid: 'user_default' };
-      }
-      
-      console.warn('[Store] 사용자 정보를 찾을 수 없습니다.');
+    // 실제 세션 쿠키 존재 여부 확인 (가장 신뢰할 수 있는 방법)
+    const hasCookie = document.cookie.includes('nile-check-auth=');
+    
+    // 쿠키 정보에서 전화번호 추출 시도
+    const phoneNumber = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('user-phone='))
+      ?.split('=')[1];
+    
+    if (hasCookie && phoneNumber) {
+      // 전화번호로 사용자 ID 생성 (하이픈 제거)
+      return { uid: phoneNumber.replace(/-/g, '') };
+    }
+    
+    if (hasCookie) {
+      console.log('[Store] 인증 쿠키가 있지만 전화번호 추출 실패, 기본값 사용');
       return { uid: 'user_default' };
     }
     
-    return { uid: user.id || 'user_default' };
+    // 대체 방법: SessionContext 또는 window.authStore 사용 시도
+    try {
+      // @ts-expect-error - 런타임에는 authStore가 로드됨
+      const authStore = window.authStore || { getState: () => ({ currentUser: null }) };
+      const user = typeof authStore.getState === 'function' 
+        ? authStore.getState().currentUser 
+        : authStore.user;
+        
+      if (user && user.id) {
+        console.log(`[Store] 인증 스토어에서 사용자 ID 찾음: ${user.id}`);
+        return { uid: user.id };
+      }
+    } catch (e) {
+      console.warn('[Store] 인증 스토어 접근 실패:', e);
+    }
+    
+    console.warn('[Store] 사용자 정보를 찾을 수 없습니다. 기본값 사용');
+    return { uid: 'user_default' };
   } catch (e) {
     console.error('[Store] 사용자 정보 가져오기 실패:', e);
     return { uid: 'user_default' };

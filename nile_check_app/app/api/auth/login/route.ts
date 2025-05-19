@@ -50,7 +50,18 @@ export async function POST(req: NextRequest) {
         });
         
         // 인증 쿠키 설정
-        return setAuthCookie(response, token);
+        const authedResponse = setAuthCookie(response, token);
+        
+        // 전화번호 쿠키 추가 (식별용)
+        authedResponse.cookies.set({
+          name: 'user-phone',
+          value: testAccount.userData.phoneNumber,
+          maxAge: 60 * 60 * 24 * 7, // 7일
+          path: '/',
+          sameSite: 'lax',
+        });
+        
+        return authedResponse;
       }
     }
     
@@ -144,7 +155,18 @@ export async function POST(req: NextRequest) {
     });
     
     // 인증 쿠키 설정
-    return setAuthCookie(response, token);
+    const authedResponse = setAuthCookie(response, token);
+    
+    // 전화번호 쿠키 추가 (식별용)
+    authedResponse.cookies.set({
+      name: 'user-phone',
+      value: user.phoneNumber,
+      maxAge: 60 * 60 * 24 * 7, // 7일
+      path: '/',
+      sameSite: 'lax',
+    });
+    
+    return authedResponse;
   } catch (error) {
     console.error('[Auth API] 로그인 처리 중 오류:', error);
     return NextResponse.json(

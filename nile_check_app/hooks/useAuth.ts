@@ -96,6 +96,12 @@ export default function useAuth() {
           timestamp: now
         };
         
+        console.log('[useAuth] 세션 정보 업데이트:', { 
+          userId: data.user.id, 
+          name: data.user.name, 
+          phone: data.user.phoneNumber 
+        });
+        
         setState({
           user: data.user,
           isAuthenticated: true,
@@ -111,6 +117,8 @@ export default function useAuth() {
           },
           timestamp: now
         };
+        
+        console.log('[useAuth] 인증되지 않은 세션');
         
         setState({
           user: null,

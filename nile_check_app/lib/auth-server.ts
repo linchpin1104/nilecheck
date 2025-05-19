@@ -251,6 +251,7 @@ export function setAuthCookie(response: NextResponse, token: string) {
 
 // 쿠키 제거
 export function clearAuthCookie(response: NextResponse) {
+  // 인증 쿠키 제거
   response.cookies.set({
     name: TOKEN_COOKIE_NAME,
     value: '',
@@ -262,15 +263,25 @@ export function clearAuthCookie(response: NextResponse) {
     domain: undefined // 도메인 지정을 제거하여 현재 도메인에만 쿠키 적용
   });
   
+  // 전화번호 쿠키도 제거
+  response.cookies.set({
+    name: 'user-phone',
+    value: '',
+    path: '/',
+    maxAge: 0,
+    sameSite: 'lax',
+  });
+  
   // Clear cookie in headers directly as well for maximum compatibility
   const cookieHeader = `${TOKEN_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`;
+  const phoneHeader = `user-phone=; Path=/; Max-Age=0; SameSite=Lax`;
   
   // Append to existing Set-Cookie headers if any
   const existingCookies = response.headers.get('Set-Cookie');
   if (existingCookies) {
-    response.headers.set('Set-Cookie', `${existingCookies}, ${cookieHeader}`);
+    response.headers.set('Set-Cookie', `${existingCookies}, ${cookieHeader}, ${phoneHeader}`);
   } else {
-    response.headers.set('Set-Cookie', cookieHeader);
+    response.headers.set('Set-Cookie', `${cookieHeader}, ${phoneHeader}`);
   }
   
   return response;

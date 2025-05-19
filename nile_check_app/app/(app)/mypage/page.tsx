@@ -3,28 +3,29 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Settings, User, LogOut, Mail, Phone, CalendarDays } from "lucide-react";
+import { Settings, User, LogOut, Mail, Phone, CalendarDays, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import useAuth from "@/hooks/useAuth";
 import { useAppStore } from "@/lib/store";
 
 export default function MyPage() {
   const router = useRouter();
-  const { user, isLoading: authLoading, logout } = useAuth();
+  const { user, isLoading: authLoading, logout, refreshSession } = useAuth();
   const { meals, sleep, checkins, isInitialized } = useAppStore();
   
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   // 사용자 정보가 로드되면 상태 업데이트
   const [userData, setUserData] = useState({
-    name: "김부모",
-    email: "parent@example.com",
-    phoneNumber: "010-1234-5678",
-    createdAt: "2023-04-15T09:00:00.000Z",
+    name: "사용자",
+    email: "",
+    phoneNumber: "",
+    createdAt: new Date().toISOString(),
     childrenInfo: {
-      count: 2,
-      ageGroups: ["유아", "초등학생"]
+      count: 0,
+      ageGroups: []
     }
   });
   
@@ -36,8 +37,28 @@ export default function MyPage() {
     wellnessReports: Math.floor(checkins.length / 4) // Just an example calculation
   }), [meals.length, sleep.length, checkins.length]);
   
+  // 사용자 정보 수동 새로고침
+  const handleRefreshUserData = async () => {
+    try {
+      setIsRefreshing(true);
+      setError(null);
+      console.log("사용자 정보 새로고침 시작");
+      
+      // 세션 정보 강제 갱신
+      await refreshSession();
+      
+      setIsRefreshing(false);
+    } catch (err) {
+      console.error("사용자 정보 새로고침 오류:", err);
+      setError("사용자 정보를 새로고침하는 중 오류가 발생했습니다.");
+      setIsRefreshing(false);
+    }
+  };
+  
   // 인증된 사용자 정보로 상태 업데이트 - 최적화
   useEffect(() => {
+    console.log("사용자 정보 useEffect 실행:", user ? `${user.name} (${user.phoneNumber})` : "정보 없음");
+    
     if (user) {
       setUserData(prevData => ({
         ...prevData,
@@ -80,6 +101,32 @@ export default function MyPage() {
     );
   }
   
+  // 사용자 정보가 없을 경우
+  if (!user) {
+    return (
+      <div className="container mx-auto py-8 px-4">
+        <h1 className="text-3xl font-bold mb-8 text-primary">내 정보</h1>
+        
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5 text-primary" /> 로그인 필요
+            </CardTitle>
+            <CardDescription>사용자 정보를 확인하려면 로그인이 필요합니다</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <p>사용자 정보를 불러올 수 없습니다. 다시 로그인해주세요.</p>
+              <Button onClick={() => router.push('/login')}>
+                로그인 페이지로 이동
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
   return (
     <div className="container mx-auto py-8 px-4">
       {error && (
@@ -88,7 +135,18 @@ export default function MyPage() {
         </div>
       )}
       
-      <h1 className="text-3xl font-bold mb-8 text-primary">내 정보</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold text-primary">내 정보</h1>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={handleRefreshUserData}
+          disabled={isRefreshing}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+          {isRefreshing ? '새로고침 중...' : '정보 새로고침'}
+        </Button>
+      </div>
       
       {/* 프로필 카드 */}
       <Card className="mb-8">
