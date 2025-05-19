@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { AES, enc } from 'crypto-js';
 import { formatPhoneNumber } from '@/lib/verification/phone-utils';
-import { createVerificationRequest, updateVerificationRequest } from '@/lib/firebase/db-service';
 import { mockVerificationStore } from '@/lib/verification/store';
-import { Timestamp } from 'firebase/firestore';
 
 export async function POST(req: NextRequest) {
   try {
@@ -100,21 +98,10 @@ export async function POST(req: NextRequest) {
       // Verification successful - clean up the cookie
       cookieStore.delete(`verify_${requestId}`);
       
-      // 인증 정보를 Firestore에 영구 저장
-      console.log(`[API] 인증 성공: ${formattedInput}. Firestore에 저장 중...`);
+      // 인증 정보를 메모리에 저장
+      console.log(`[API] 인증 성공: ${formattedInput}. 메모리에 저장 중...`);
       try {
-        // 1. Firestore에 새 인증 문서 생성
-        const verificationData = {
-          phoneNumber: formattedInput,
-          code: code,
-          verified: true,
-          attempts: verificationRecord.attempts
-        };
-        
-        // createVerificationRequest를 직접 사용하지 않고 간단하게 표준 형식의 전화번호로 인증 상태 설정
-        console.log(`[API] 전화번호 ${formattedInput}의 인증 정보가 Firestore에 저장됨`);
-        
-        // 2. 메모리 스토어에도 백업으로 저장 (개발 환경용)
+        // 메모리 스토어에 저장 (개발 환경용)
         mockVerificationStore[formattedInput] = {
           phoneNumber: formattedInput,
           code: code,

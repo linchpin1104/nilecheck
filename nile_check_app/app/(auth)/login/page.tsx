@@ -143,7 +143,7 @@ function LoginForm() {
       
       <CardContent>
         {sessionExpired && (
-          <Alert variant="warning" className="mb-4 bg-yellow-50 border-yellow-200">
+          <Alert className="mb-4 bg-yellow-50 border-yellow-200">
             <Info className="h-4 w-4 text-yellow-600" />
             <AlertDescription className="text-yellow-800">
               세션이 만료되었습니다. 다시 로그인해주세요.
