@@ -76,6 +76,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       
       // 쿠키 상태 먼저 확인
       const hasCookie = document.cookie.includes('nile-check-auth=');
+      console.log("[SessionProvider DEBUG] 인증 쿠키 존재 여부:", hasCookie);
       
       // 쿠키가 없으면 인증 안된 상태로 빠르게 리턴
       if (!hasCookie) {
@@ -84,6 +85,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setUser(null);
         sessionStore.updateUserId(null);
         sessionStore.isAuthenticated = false;
+        console.log("[SessionProvider DEBUG] 세션 스토어 초기화됨:", { userId: sessionStore.userId, isAuthenticated: sessionStore.isAuthenticated });
         setSessionChecked(true);
         setSessionCheckFailed(false);
         setIsLoading(false);
@@ -112,14 +114,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
       
       const data = await response.json();
+      console.log("[SessionProvider DEBUG] 세션 API 응답:", { success: data.success, authenticated: data.authenticated, userId: data.user?.id, phoneNumber: data.user?.phoneNumber });
       
       if (data.success && data.authenticated) {
+        // 국제 전화번호 형식 (예: +821052995980)이 있으면 표준 형식으로 변환
+        if (data.user && data.user.phoneNumber && data.user.phoneNumber.startsWith('+82')) {
+          data.user.phoneNumber = data.user.phoneNumber.replace(/^\+82/, '0');
+          console.log("[SessionProvider DEBUG] 국제 전화번호 형식을 표준 형식으로 변환:", data.user.phoneNumber);
+        }
+        
         console.log("[SessionProvider] 인증된 세션 발견:", data.user.id);
         setIsAuthenticated(true);
         setUser(data.user);
         // 전역 저장소에 사용자 ID 업데이트
         sessionStore.updateUserId(data.user.id);
         sessionStore.isAuthenticated = true;
+        console.log("[SessionProvider DEBUG] 세션 스토어 업데이트됨:", { userId: sessionStore.userId, isAuthenticated: sessionStore.isAuthenticated });
         setSessionChecked(true);
         setSessionCheckFailed(false);
         setIsLoading(false);
@@ -132,6 +142,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         // 전역 저장소에서 사용자 ID 제거
         sessionStore.updateUserId(null);
         sessionStore.isAuthenticated = false;
+        console.log("[SessionProvider DEBUG] 세션 스토어 초기화됨:", { userId: sessionStore.userId, isAuthenticated: sessionStore.isAuthenticated });
         setSessionChecked(true);
         setSessionCheckFailed(false);
         setIsLoading(false);

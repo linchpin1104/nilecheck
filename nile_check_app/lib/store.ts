@@ -88,9 +88,15 @@ interface AppState {
 // 사용자 정보 가져오기 함수 개선
 const getUserInfo = (): { uid: string } => {
   try {
+    console.log('[Store DEBUG] getUserInfo 호출됨');
+    
     // 1. SessionStore에서 사용자 ID 확인 (가장 신뢰할 수 있는 출처)
     if (sessionStore.isAuthenticated && sessionStore.userId) {
+      console.log('[Store DEBUG] sessionStore에서 인증된 사용자 ID 찾음:', sessionStore.userId);
+      console.log('[Store DEBUG] sessionStore 상태:', { isAuthenticated: sessionStore.isAuthenticated, userId: sessionStore.userId });
       return { uid: sessionStore.userId };
+    } else {
+      console.log('[Store DEBUG] sessionStore에 유효한 사용자 정보 없음', { isAuthenticated: sessionStore.isAuthenticated, userId: sessionStore.userId });
     }
     
     // 2. 세션 쿠키에서 사용자 ID 정보 추출 시도
@@ -100,40 +106,54 @@ const getUserInfo = (): { uid: string } => {
       ?.split('=')[1];
     
     if (cookieValue) {
+      console.log('[Store DEBUG] 인증 쿠키 발견', { cookieExists: true, cookieLength: cookieValue.length });
       try {
         // 쿠키 값이 Base64 인코딩된 JWT 토큰이므로 디코드 시도
         const tokenParts = cookieValue.split('.');
         if (tokenParts.length === 3) {
           const payload = JSON.parse(atob(tokenParts[1]));
+          console.log('[Store DEBUG] JWT 토큰 디코드 성공');
           if (payload.user && payload.user.id) {
+            console.log('[Store DEBUG] 쿠키에서 사용자 ID 추출:', payload.user.id);
             // 전역 세션 스토어에 사용자 ID 동기화
             sessionStore.updateUserId(payload.user.id);
+            sessionStore.isAuthenticated = true;
+            console.log('[Store DEBUG] sessionStore 상태 업데이트됨:', { isAuthenticated: sessionStore.isAuthenticated, userId: sessionStore.userId });
             return { uid: payload.user.id };
           }
+        } else {
+          console.log('[Store DEBUG] 유효한 JWT 토큰 형식이 아님:', { partsCount: tokenParts.length });
         }
       } catch (e) {
-        console.warn('[Store] 세션 쿠키 디코드 실패:', e);
+        console.warn('[Store DEBUG] 세션 쿠키 디코드 실패:', e);
         // 디코드 실패 시 다음 단계로 진행
       }
+    } else {
+      console.log('[Store DEBUG] 인증 쿠키 없음');
     }
     
     // 3. 로컬 스토리지에서 마지막 사용자 ID 확인
     if (typeof window !== 'undefined') {
       const lastUserId = localStorage.getItem('last_user_id');
       if (lastUserId) {
+        console.log('[Store DEBUG] 로컬 스토리지에서 사용자 ID 찾음:', lastUserId);
         // 전역 세션 스토어에 사용자 ID 동기화 
         // (세션이 인증되지 않은 상태라면 동기화하지 않음)
         if (!sessionStore.isAuthenticated) {
           sessionStore.userId = lastUserId; // 값만 설정, localStorage는 업데이트하지 않음
+          console.log('[Store DEBUG] sessionStore.userId만 업데이트됨:', { isAuthenticated: sessionStore.isAuthenticated, userId: sessionStore.userId });
         }
         return { uid: lastUserId };
+      } else {
+        console.log('[Store DEBUG] 로컬 스토리지에 사용자 ID 없음');
       }
     }
     
     // 4. 기본값 사용
+    console.log('[Store DEBUG] 기본 사용자 ID 사용');
     return { uid: 'user_default' };
   } catch (e) {
-    console.error('[Store] 사용자 정보 가져오기 실패:', e);
+    console.error('[Store DEBUG] 사용자 정보 가져오기 실패:', e);
     return { uid: 'user_default' };
   }
 };

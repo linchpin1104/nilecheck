@@ -66,6 +66,10 @@ export default function useAuth() {
         if (sessionCache.data.user?.id) {
           sessionStore.updateUserId(sessionCache.data.user.id);
           sessionStore.isAuthenticated = sessionCache.data.isAuthenticated;
+          console.log('[useAuth DEBUG] sessionStore 동기화 (캐시된 데이터):', {
+            userId: sessionStore.userId,
+            isAuthenticated: sessionStore.isAuthenticated
+          });
         }
         
         setState({
@@ -93,8 +97,15 @@ export default function useAuth() {
       }
       
       const data = await response.json();
+      console.log('[useAuth DEBUG] 세션 API 응답:', data);
       
       if (data.success && data.authenticated) {
+        // 국제 전화번호 형식 처리 (+82xxxx -> 0xxxx)
+        if (data.user && data.user.phoneNumber && data.user.phoneNumber.startsWith('+82')) {
+          data.user.phoneNumber = data.user.phoneNumber.replace(/^\+82/, '0');
+          console.log('[useAuth DEBUG] 전화번호 형식 변환:', data.user.phoneNumber);
+        }
+        
         // Update cache
         sessionCache = {
           data: {
@@ -108,6 +119,18 @@ export default function useAuth() {
         if (data.user?.id) {
           sessionStore.updateUserId(data.user.id);
           sessionStore.isAuthenticated = true;
+          console.log('[useAuth DEBUG] sessionStore 동기화 (로그인):', {
+            userId: sessionStore.userId,
+            isAuthenticated: sessionStore.isAuthenticated,
+            userName: data.user.name,
+            phoneNumber: data.user.phoneNumber
+          });
+          
+          // 로컬 스토리지에도 마지막 사용자 ID 저장
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('last_user_id', data.user.id);
+            console.log('[useAuth DEBUG] 로컬 스토리지에 마지막 사용자 ID 저장:', data.user.id);
+          }
         }
         
         console.log('[useAuth] 세션 정보 업데이트:', { 
@@ -134,6 +157,18 @@ export default function useAuth() {
         
         // sessionStore와 동기화 - 인증 실패
         console.log('[useAuth] 인증되지 않은 세션');
+        sessionStore.updateUserId(null);
+        sessionStore.isAuthenticated = false;
+        console.log('[useAuth DEBUG] sessionStore 동기화 (로그아웃):', {
+          userId: sessionStore.userId,
+          isAuthenticated: sessionStore.isAuthenticated
+        });
+        
+        // 로컬 스토리지의 마지막 사용자 ID 삭제
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('last_user_id');
+          console.log('[useAuth DEBUG] 로컬 스토리지에서 마지막 사용자 ID 삭제');
+        }
         
         setState({
           user: null,
