@@ -1,11 +1,13 @@
 "use client";
 
+import React, { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { X, LogOut, User } from "lucide-react";
 import { useSession } from "@/contexts/SessionProvider";
 import { Button } from "@/components/ui/button";
+import useAuth from "@/hooks/useAuth";
 
 export default function AppLayout({
   children,
@@ -15,6 +17,7 @@ export default function AppLayout({
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, isAuthenticated, logout } = useSession();
+  const { isLoading } = useAuth();
   
   const navigation = [
     { name: '대시보드', href: '/dashboard' },
@@ -29,6 +32,22 @@ export default function AppLayout({
   const handleLogout = () => {
     logout();
   };
+  
+  // 로그인 후에는 localStorage에 인증 상태를 캐시해서 
+  // 페이지 간 이동 시 깜빡임이나 무한 로딩을 방지
+  useEffect(() => {
+    if (isAuthenticated && user && !isLoading) {
+      try {
+        localStorage.setItem('nile-check-auth', JSON.stringify({
+          isAuthenticated: true,
+          currentUser: user
+        }));
+        console.log('[AppLayout] 인증 상태 캐시됨:', user.id);
+      } catch (error) {
+        console.error('[AppLayout] 인증 상태 캐싱 오류:', error);
+      }
+    }
+  }, [isAuthenticated, user, isLoading]);
   
   return (
     <div className="flex flex-col min-h-screen">

@@ -319,10 +319,57 @@ export default function useAuth() {
     }
   }, [fetchSession]);
   
-  // 앱 로드 시 세션 확인
+  // 초기화 시 localStorage에서 세션 복구
   useEffect(() => {
-    fetchSession();
-  }, [fetchSession]);
+    // 첫 로드 시에만 실행
+    const initializeAuth = async () => {
+      try {
+        const authData = localStorage.getItem('nile-check-auth');
+        if (authData) {
+          console.log('[useAuth] localStorage에서 인증 데이터 발견');
+          try {
+            const parsed = JSON.parse(authData);
+            if (parsed.isAuthenticated && parsed.currentUser) {
+              console.log('[useAuth] 로컬 스토리지 데이터로 상태 초기화');
+              
+              // 상태 업데이트 (캐시 업데이트)
+              sessionCache.data = { 
+                isAuthenticated: true, 
+                user: parsed.currentUser 
+              };
+              sessionCache.timestamp = Date.now();
+              
+              // sessionStore 업데이트
+              sessionStore.updateUserId(parsed.currentUser.id);
+              sessionStore.isAuthenticated = true;
+              
+              // 상태 업데이트
+              setState({
+                isLoading: false,
+                isAuthenticated: true,
+                user: parsed.currentUser,
+                error: null
+              });
+              
+              // 그 후 서버와 세션 동기화
+              setTimeout(() => fetchSession(true), 100);
+              return;
+            }
+          } catch (e) {
+            console.error('[useAuth] localStorage 데이터 파싱 오류:', e);
+          }
+        }
+        
+        // localStorage에 데이터가 없거나 파싱 실패 시 서버에서 세션 가져오기
+        fetchSession();
+      } catch (error) {
+        console.error('[useAuth] 인증 초기화 오류:', error);
+        setState(prev => ({ ...prev, isLoading: false, error: '인증 초기화 오류' }));
+      }
+    };
+    
+    initializeAuth();
+  }, []);
   
   // sessionStore에서 사용자 ID를 직접 가져오는 메서드 추가
   const getUserId = () => {

@@ -28,9 +28,8 @@ export default function DashboardPage() {
     setSuggestions
   } = useAppStore();
   
-  const { getUserId, refreshSession, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { getUserId, refreshSession } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isLocalLoading, setIsLocalLoading] = useState(true);
   
   const [summary, setSummary] = useState({
     todaySleepHours: 0,
@@ -391,7 +390,7 @@ export default function DashboardPage() {
   // 페이지 로딩 시 세션 상태 강제 확인 및 데이터 동기화
   useEffect(() => {
     const initPage = async () => {
-      setIsLocalLoading(true);
+      setIsRefreshing(true);
       console.log('[Dashboard] 페이지 초기화 시작, 세션 확인 중...');
       
       // 세션 강제 갱신
@@ -405,12 +404,13 @@ export default function DashboardPage() {
         await syncData(userId);
       }
       
-      setIsLocalLoading(false);
+      setIsRefreshing(false);
       console.log('[Dashboard] 페이지 초기화 완료');
     };
     
     initPage();
-  }, [refreshSession, getUserId, syncData]);
+    // Only run this effect once when the component mounts
+  }, []);
 
   if (!isInitialized || isLoading) {
     return (

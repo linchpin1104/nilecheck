@@ -56,7 +56,8 @@ export default function MyPage() {
     };
     
     initPage();
-  }, [refreshSession, getUserId, syncData]);
+    // Only run this effect once when the component mounts
+  }, []);
   
   // 사용자 정보가 로드되면 상태 업데이트
   const [userData, setUserData] = useState<UserData>({

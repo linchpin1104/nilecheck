@@ -215,7 +215,35 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (sessionChecked && pathname) {
       checkAuthCookie();
     }
-  }, [pathname, sessionChecked, isAuthenticated, checkSession]);
+    
+    // localStorage에서 userId를 복구 - 페이지 로드 시 세션 복구에 도움
+    const tryRestoreFromLocalStorage = () => {
+      if (!isAuthenticated && !user && typeof window !== 'undefined') {
+        try {
+          // 로컬 스토리지에서 인증 데이터 확인
+          const authData = localStorage.getItem('nile-check-auth');
+          if (authData) {
+            const parsed = JSON.parse(authData);
+            if (parsed.isAuthenticated && parsed.currentUser) {
+              console.log('[SessionProvider] localStorage에서 인증 정보 복구 시도');
+              setUser(parsed.currentUser);
+              setIsAuthenticated(true);
+              sessionStore.updateUserId(parsed.currentUser.id);
+              sessionStore.isAuthenticated = true;
+              prevAuthState.current = true;
+            }
+          }
+        } catch (error) {
+          console.error('[SessionProvider] localStorage 복구 실패:', error);
+        }
+      }
+    };
+    
+    // 페이지 첫 로드시 로컬 스토리지에서 세션 복구 시도
+    if (!sessionChecked && !isLoading) {
+      tryRestoreFromLocalStorage();
+    }
+  }, [pathname, sessionChecked, isAuthenticated, isLoading, user, checkSession]);
 
   // 로그인 함수
   const login = (userData: User) => {

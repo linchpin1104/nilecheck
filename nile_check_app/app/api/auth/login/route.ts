@@ -22,14 +22,24 @@ const TEST_ACCOUNTS = [
 
 export async function POST(req: NextRequest) {
   try {
-    let { phoneNumber, password: passwordInput } = await req.json();
+    const requestData = await req.json();
+    let phoneNumber = requestData.phoneNumber;
+    const password = requestData.password;
     
-    if (!phoneNumber || !passwordInput) {
-      return NextResponse.json(
-        { success: false, message: '전화번호와 비밀번호를 모두 입력해주세요.' },
-        { status: 400 }
-      );
+    if (!phoneNumber || !password) {
+      return NextResponse.json({ success: false, message: '전화번호와 비밀번호를 모두 입력해주세요.' }, { status: 400 });
     }
+    
+    // Find user in database
+    console.log(`[로그인] 전화번호로 사용자 검색: ${phoneNumber}`);
+    
+    // No user found
+    if (!phoneNumber) {
+      return NextResponse.json({ success: false, message: '등록되지 않은 전화번호입니다.' }, { status: 404 });
+    }
+    
+    // Password verification
+    const passwordInput = password;
     
     console.log(`[Auth API] 로그인 요청 - 원본 전화번호: ${phoneNumber}`);
     
@@ -150,8 +160,8 @@ export async function POST(req: NextRequest) {
           const allUsersSnapshot = await getDocs(usersRef);
           console.log(`[Auth API] 전체 사용자 목록 (${allUsersSnapshot.size}명):`);
           allUsersSnapshot.forEach(doc => {
-            const user = doc.data();
-            console.log(`- ID: ${user.uid}, 전화번호: ${user.phoneNumber}, 이름: ${user.name}`);
+            const userData = doc.data();
+            console.log(`- ID: ${userData.uid}, 전화번호: ${userData.phoneNumber}, 이름: ${userData.name}`);
           });
         } catch (listErr) {
           console.error('[Auth API] 전체 사용자 조회 오류:', listErr);
@@ -248,7 +258,7 @@ export async function POST(req: NextRequest) {
     }
     
     // 사용자 정보 준비
-    const user: User = {
+    const userInfo: User = {
       id: userData.uid || userDoc.id,
       name: userData.name,
       phoneNumber: userData.phoneNumber,
@@ -256,16 +266,16 @@ export async function POST(req: NextRequest) {
       createdAt: userData.createdAt
     };
     
-    console.log(`[Auth API] 로그인 성공: ${user.name} (${user.phoneNumber})`);
+    console.log(`[Auth API] 로그인 성공: ${userInfo.name} (${userInfo.phoneNumber})`);
     
     // JWT 토큰 생성
-    const token = await createSession(user);
+    const token = await createSession(userInfo);
     
     // 응답 생성 및 쿠키 설정
     const response = NextResponse.json({
       success: true,
       message: '로그인이 완료되었습니다.',
-      user
+      user: userInfo
     });
     
     // 인증 쿠키 설정
@@ -274,7 +284,7 @@ export async function POST(req: NextRequest) {
     // 전화번호 쿠키 추가 (식별용)
     authedResponse.cookies.set({
       name: 'user-phone',
-      value: user.phoneNumber,
+      value: userInfo.phoneNumber,
       maxAge: 60 * 60 * 24 * 7, // 7일
       path: '/',
       sameSite: 'lax',

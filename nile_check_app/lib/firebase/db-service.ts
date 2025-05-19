@@ -305,7 +305,7 @@ export async function getFirestoreUserByPhone(phoneNumber: string): Promise<Fire
       return userData;
     }
     
-    // +82 형식 ID로 검색 (한국 번호만 해당)
+    // +82 형식 ID로 직접 검색 - 국제 형식으로 저장된 경우
     if (standardPhone.startsWith('010-')) {
       const e164Format = standardPhone.replace(/^010-/, '+82');
       const e164FormatNoHyphen = removeHyphens(e164Format);
@@ -317,6 +317,22 @@ export async function getFirestoreUserByPhone(phoneNumber: string): Promise<Fire
       if (e164UserDoc.exists()) {
         const userData = e164UserDoc.data() as FirestoreUser;
         console.log(`[DB] 국제 형식 ID로 사용자 발견: ${userData.uid}`);
+        return userData;
+      }
+    }
+    
+    // 국제 형식(+82)이 주어졌을 때 국내 형식(010) ID로 검색
+    if (phoneNumber.startsWith('+82')) {
+      const localFormatId = '0' + phoneNumber.substring(3); // +82 -> 0
+      const localFormatIdNoHyphen = removeHyphens(localFormatId);
+      console.log(`[DB] 국내 형식 ID로 검색: ${localFormatIdNoHyphen}`);
+      
+      const localUserRef = doc(db, USERS_COLLECTION, localFormatIdNoHyphen);
+      const localUserDoc = await getDoc(localUserRef);
+      
+      if (localUserDoc.exists()) {
+        const userData = localUserDoc.data() as FirestoreUser;
+        console.log(`[DB] 국내 형식 ID로 사용자 발견: ${userData.uid}`);
         return userData;
       }
     }
@@ -367,6 +383,7 @@ export async function getFirestoreUserByPhone(phoneNumber: string): Promise<Fire
     
     // 국내 형식 (010) 검색 - 국제 형식으로 저장된 번호의 경우
     if (phoneNumber.startsWith('+82')) {
+      // +8210XXXXXXXX -> 010-XXXX-XXXX 형식으로 변환
       const localFormat = `010-${phoneNumber.substring(3, 7)}-${phoneNumber.substring(7)}`;
       console.log(`[DB] 국내 형식으로 검색: ${localFormat}`);
       
@@ -376,6 +393,19 @@ export async function getFirestoreUserByPhone(phoneNumber: string): Promise<Fire
       if (!localQuerySnapshot.empty) {
         const userData = localQuerySnapshot.docs[0].data() as FirestoreUser;
         console.log(`[DB] 국내 형식으로 사용자 발견: ${userData.uid}`);
+        return userData;
+      }
+      
+      // +82XXXXXXXXXX -> 01XXXXXXXXX 형식으로 변환 (하이픈 없음)
+      const localNoHyphen = '0' + phoneNumber.substring(3);
+      console.log(`[DB] 하이픈 없는 국내 형식으로 검색: ${localNoHyphen}`);
+      
+      const localNoHyphenQuery = query(usersRef, where('phoneNumber', '==', localNoHyphen));
+      const localNoHyphenSnapshot = await getDocs(localNoHyphenQuery);
+      
+      if (!localNoHyphenSnapshot.empty) {
+        const userData = localNoHyphenSnapshot.docs[0].data() as FirestoreUser;
+        console.log(`[DB] 하이픈 없는 국내 형식으로 사용자 발견: ${userData.uid}`);
         return userData;
       }
     }
