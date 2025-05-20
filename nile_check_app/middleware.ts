@@ -19,6 +19,9 @@ export async function middleware(request: NextRequest) {
   // Get the pathname of the request
   const path = request.nextUrl.pathname;
   
+  // 디버깅 로그 추가
+  console.log(`[Middleware] 요청 경로: ${path}`);
+  
   // Define public paths that don't require authentication (인증이 필요 없는 공개 경로)
   const isPublicPath = path === '/login' || 
                       path === '/register' || 
@@ -28,19 +31,9 @@ export async function middleware(request: NextRequest) {
                       path === '/direct-login' ||
                       path.startsWith('/api/auth/');
   
-  // Special handling for the home page - redirect to login (홈페이지 리다이렉션 변경)
-  if (path === '/') {
-    return NextResponse.redirect(new URL('/login', request.url));
-  }
-  
-  // Allow access to public paths without authentication check
-  if (isPublicPath) {
-    return NextResponse.next();
-  }
-  
-  // Allow access to API endpoints (handled by the API routes themselves)
-  if (path.startsWith('/api/')) {
-    // API 요청은 각 API 라우트에서 인증 처리
+  // API requests should be handled by their routes
+  if (path.startsWith('/api/') && !path.startsWith('/api/auth/')) {
+    console.log(`[Middleware] API 요청 허용: ${path}`);
     return NextResponse.next();
   }
   
@@ -64,9 +57,35 @@ export async function middleware(request: NextRequest) {
       }
     } catch (error) {
       console.error('[Middleware] Invalid auth token:', error);
+      // Don't redirect away from public paths even if token is invalid
+      if (isPublicPath) {
+        return NextResponse.next();
+      }
     }
   } else {
     console.log('[Middleware] No auth token found in cookies');
+    // Don't redirect away from public paths if no token exists
+    if (isPublicPath) {
+      return NextResponse.next();
+    }
+  }
+  
+  // Special handling for the home page - redirect logic
+  if (path === '/') {
+    // 인증된 사용자는 대시보드로, 비인증 사용자는 로그인으로
+    if (isAuthenticated) {
+      console.log('[Middleware] 인증된 사용자의 홈 접근, 대시보드로 리다이렉션');
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    } else {
+      console.log('[Middleware] 비인증 사용자의 홈 접근, 로그인으로 리다이렉션');
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+  }
+  
+  // Allow access to public paths without authentication check
+  if (isPublicPath) {
+    console.log(`[Middleware] 공개 경로 접근 허용: ${path}`);
+    return NextResponse.next();
   }
   
   // If not authenticated and trying to access any protected route, redirect to login
@@ -75,11 +94,21 @@ export async function middleware(request: NextRequest) {
     const params = new URLSearchParams();
     params.set('callbackUrl', path);
     
-    console.log(`[Middleware] Redirecting to login from protected path: ${path}`);
+    // Check if we're already coming from the login page to prevent redirect loops
+    const referer = request.headers.get('referer') || '';
+    const isFromLogin = referer.includes('/login');
+    
+    if (isFromLogin) {
+      console.log(`[Middleware] 로그인 페이지에서 왔지만 인증 안됨, 리다이렉트 루프 방지를 위해 그대로 진행`);
+      return NextResponse.next();
+    }
+    
+    console.log(`[Middleware] 비인증 사용자의 보호 경로 접근, 로그인으로 리다이렉션: ${path}`);
     return NextResponse.redirect(new URL(`/login?${params.toString()}`, request.url));
   }
   
   // Authenticated user - proceed with the request
+  console.log(`[Middleware] 인증된 사용자 요청 처리: ${path}, 사용자=${userId}`);
   const response = NextResponse.next();
   // 인증 상태 헤더 추가
   response.headers.set('x-auth-status', 'authenticated');

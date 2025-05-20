@@ -78,9 +78,62 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const hasCookie = document.cookie.includes('nile-check-auth=');
       console.log("[SessionProvider DEBUG] 인증 쿠키 존재 여부:", hasCookie);
       
-      // 쿠키가 없으면 인증 안된 상태로 빠르게 리턴
+      // 로컬 스토리지에서 인증 정보 확인
+      let localAuthData = null;
+      try {
+        const localStorageAuth = localStorage.getItem('nile-check-auth');
+        if (localStorageAuth) {
+          localAuthData = JSON.parse(localStorageAuth);
+          console.log("[SessionProvider DEBUG] 로컬 스토리지 인증 정보:", 
+            localAuthData.isAuthenticated ? "인증됨" : "인증안됨", 
+            localAuthData.currentUser?.id || "사용자 없음");
+        }
+      } catch (localError) {
+        console.error("[SessionProvider] 로컬 스토리지 읽기 실패:", localError);
+      }
+      
+      // 쿠키는 없지만 로컬 스토리지에 인증 정보가 있는 경우 (세션 복구 시도)
+      if (!hasCookie && localAuthData?.isAuthenticated && localAuthData?.currentUser) {
+        console.log("[SessionProvider] 쿠키는 없지만 로컬 스토리지에 인증 정보가 있습니다. 세션 복구 시도...");
+        
+        // 세션 복구 API 요청
+        try {
+          const restoreResponse = await fetch("/api/auth/session", {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache'
+            },
+            body: JSON.stringify({
+              action: 'restore',
+              user: localAuthData.currentUser
+            })
+          });
+          
+          if (restoreResponse.ok) {
+            const restoreData = await restoreResponse.json();
+            if (restoreData.success) {
+              console.log("[SessionProvider] 세션 복구 성공");
+              setIsAuthenticated(true);
+              setUser(localAuthData.currentUser);
+              sessionStore.updateUserId(localAuthData.currentUser.id);
+              sessionStore.isAuthenticated = true;
+              setSessionChecked(true);
+              setSessionCheckFailed(false);
+              setIsLoading(false);
+              prevAuthState.current = true;
+              sessionCheckFailCount.current = 0;
+              return true;
+            }
+          }
+        } catch (restoreError) {
+          console.error("[SessionProvider] 세션 복구 중 오류:", restoreError);
+        }
+      }
+      
+      // 쿠키가 없고 세션 복구도 실패했으면 인증 안된 상태로 처리
       if (!hasCookie) {
-        console.log("[SessionProvider] 인증 쿠키가 없습니다.");
+        console.log("[SessionProvider] 인증 쿠키가 없고 세션 복구도 실패했습니다.");
         setIsAuthenticated(false);
         setUser(null);
         sessionStore.updateUserId(null);
@@ -129,11 +182,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         // 전역 저장소에 사용자 ID 업데이트
         sessionStore.updateUserId(data.user.id);
         sessionStore.isAuthenticated = true;
+        
+        // 로컬 스토리지에도 인증 상태 저장 (세션 복구용)
+        try {
+          localStorage.setItem('nile-check-auth', JSON.stringify({
+            isAuthenticated: true,
+            currentUser: data.user
+          }));
+        } catch (storageError) {
+          console.error("[SessionProvider] 로컬 스토리지 저장 실패:", storageError);
+        }
+        
         console.log("[SessionProvider DEBUG] 세션 스토어 업데이트됨:", { userId: sessionStore.userId, isAuthenticated: sessionStore.isAuthenticated });
         setSessionChecked(true);
         setSessionCheckFailed(false);
         setIsLoading(false);
         prevAuthState.current = true;
+        sessionCheckFailCount.current = 0;
         return true;
       } else {
         console.log("[SessionProvider] 인증되지 않은 세션");
@@ -142,6 +207,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         // 전역 저장소에서 사용자 ID 제거
         sessionStore.updateUserId(null);
         sessionStore.isAuthenticated = false;
+        
+        // 로컬 스토리지에서도 인증 정보 제거
+        try {
+          localStorage.removeItem('nile-check-auth');
+        } catch (removeError) {
+          console.error("[SessionProvider] 로컬 스토리지 제거 실패:", removeError);
+        }
+        
         console.log("[SessionProvider DEBUG] 세션 스토어 초기화됨:", { userId: sessionStore.userId, isAuthenticated: sessionStore.isAuthenticated });
         setSessionChecked(true);
         setSessionCheckFailed(false);
@@ -151,6 +224,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error("[SessionProvider] 세션 확인 중 오류:", error);
+      
+      // 로컬 스토리지에서 백업 인증 정보 확인 시도
+      try {
+        const localStorageAuth = localStorage.getItem('nile-check-auth');
+        if (localStorageAuth) {
+          const localAuthData = JSON.parse(localStorageAuth);
+          if (localAuthData.isAuthenticated && localAuthData.currentUser) {
+            console.log("[SessionProvider] API 오류, 로컬 스토리지에서 복구 시도:", localAuthData.currentUser.id);
+            setUser(localAuthData.currentUser);
+            setIsAuthenticated(true);
+            sessionStore.updateUserId(localAuthData.currentUser.id);
+            sessionStore.isAuthenticated = true;
+            setSessionCheckFailed(true);
+            setIsLoading(false);
+            return true;
+          }
+        }
+      } catch (localError) {
+        console.error("[SessionProvider] 로컬 스토리지 복구 시도 실패:", localError);
+      }
       
       // 세션 체크 실패 시 기존 상태 유지 대신 인증되지 않은 상태로 전환
       setSessionCheckFailed(true);

@@ -104,17 +104,60 @@ function LoginForm() {
           // 세션 정보 갱신
           await checkSession();
           
-          // 강제 페이지 이동으로 변경하여 라우팅 문제 해결
+          // 로컬 스토리지에 추가 인증 정보 저장 (세션 복구용)
+          const authData = JSON.stringify({
+            isAuthenticated: true,
+            currentUser: result.user
+          });
+          localStorage.setItem('nile-check-auth', authData);
+          console.log("로컬 스토리지에 인증 정보 저장됨:", JSON.parse(authData));
+          
+          // 쿠키 확인
+          const hasCookie = document.cookie.includes('nile-check-auth=');
+          console.log("인증 쿠키 존재 여부:", hasCookie);
+          
+          if (!hasCookie) {
+            console.warn("인증 쿠키가 설정되지 않았을 수 있음");
+          }
+          
+          // 쿠키가 설정되었는지 다시 확인
+          const checkCookieInterval = setInterval(() => {
+            const hasCookie = document.cookie.includes('nile-check-auth=');
+            console.log("인증 쿠키 확인 중:", hasCookie ? "있음" : "없음");
+            
+            if (hasCookie) {
+              clearInterval(checkCookieInterval);
+              
+              // 추가 지연 후 리다이렉션
+              console.log("쿠키 확인됨, 리다이렉션 시작 - 대상:", result.redirectUrl || callbackUrl || "/dashboard");
+              
+              // 세션 스토어 상태 확인
+              console.log("세션 스토어 상태:", sessionStore);
+              
+              if (callbackUrl) {
+                window.location.href = callbackUrl;
+              } else if (result.redirectUrl) {
+                // 서버에서 지정한 리다이렉션 URL 사용
+                window.location.href = result.redirectUrl;
+              } else {
+                window.location.href = "/dashboard";
+              }
+            }
+          }, 300); // 300ms마다 쿠키 확인
+          
+          // 최대 5초 후에 강제 리다이렉션 (쿠키가 없어도)
           setTimeout(() => {
+            clearInterval(checkCookieInterval);
+            console.log("최대 대기 시간 초과, 강제 리다이렉션");
+            
             if (callbackUrl) {
               window.location.href = callbackUrl;
             } else if (result.redirectUrl) {
-              // 서버에서 지정한 리다이렉션 URL 사용
               window.location.href = result.redirectUrl;
             } else {
               window.location.href = "/dashboard";
             }
-          }, 500); // 지연 시간을 늘려 세션 체크가 완료될 시간 확보
+          }, 5000);
         } catch (err) {
           console.error("세션 갱신 중 오류:", err);
           setError("세션 갱신 중 오류가 발생했습니다. 다시 시도해주세요.");
