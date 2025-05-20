@@ -18,9 +18,43 @@ export async function middleware(request: NextRequest) {
   const requestId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
   const userAgent = request.headers.get('user-agent') || 'unknown';
   const isClient = userAgent.includes('Mozilla') || userAgent.includes('Chrome');
+  const hostname = request.headers.get('host') || '';
   
   // 디버깅 로그 추가
   console.log(`[Middleware:${requestId}] 요청 경로: ${path}, 클라이언트: ${isClient ? '브라우저' : 'API/서버'}`);
+  console.log(`[Middleware:${requestId}] 호스트: ${hostname}`);
+  
+  // Vercel preview URL 체크 - 프리뷰 도메인에서는 항상 다음 경로를 허용하고 도메인 전환을 방지
+  const isPreviewDomain = hostname.includes('-healin-lees-projects.vercel.app');
+  if (isPreviewDomain) {
+    console.log(`[Middleware:${requestId}] Vercel 프리뷰 환경 감지. 도메인 전환 방지 모드.`);
+    
+    // 로그인 상태라면 인증 헤더 추가
+    const token = request.cookies.get(TOKEN_COOKIE_NAME)?.value;
+    let userId = '';
+    
+    if (token) {
+      try {
+        const verified = await jwtVerify(token, JWT_SECRET);
+        if (verified && verified.payload && verified.payload.user) {
+          const userPayload = verified.payload.user as Record<string, unknown>;
+          userId = userPayload.id as string || '';
+          
+          // 사용자 ID 헤더 추가
+          const response = NextResponse.next();
+          response.headers.set('x-auth-status', 'authenticated');
+          response.headers.set('x-user-id', userId);
+          return response;
+        }
+      } catch (error) {
+        // 토큰 검증 실패해도 계속 진행
+        console.error(`[Middleware:${requestId}] 프리뷰 환경: 토큰 검증 실패:`, error);
+      }
+    }
+    
+    // 쿠키 없이 그냥 다음으로 진행
+    return NextResponse.next();
+  }
   
   // Define public paths that don't require authentication (인증이 필요 없는 공개 경로)
   const isPublicPath = path === '/login' || 
