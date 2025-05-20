@@ -16,7 +16,7 @@ export default function AppLayout({
 }>) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, isAuthenticated, logout } = useSession();
+  const { user, isAuthenticated, logout, checkSession } = useSession();
   const { isLoading } = useAuth();
   
   const navigation = [
@@ -74,7 +74,7 @@ export default function AppLayout({
     };
     
     tryRestoreSession();
-  }, []); // 의존성 배열 비움 - 컴포넌트 마운트 시 한 번만 실행
+  }, [isAuthenticated, isLoading, checkSession]); // 의존성 배열 추가
   
   return (
     <div className="flex flex-col min-h-screen">

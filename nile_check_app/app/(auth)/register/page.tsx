@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { useRouter } from "next/navigation";
 import useAuth from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +11,8 @@ import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PhoneVerification } from "@/components/phone-verification";
 
-// 클라이언트 컴포넌트 - useRouter를 사용하는 부분
+// 클라이언트 컴포넌트 - useRouter 사용 제거 (window.location 사용으로 변경)
 function RegisterForm() {
-  const router = useRouter();
   const { register } = useAuth();
   
   // Form fields
