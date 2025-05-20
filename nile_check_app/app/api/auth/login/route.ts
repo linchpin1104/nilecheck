@@ -155,6 +155,8 @@ export async function POST(req: NextRequest) {
       console.log(`[Auth API] 사용자 없음: ${phoneNumber} (모든 형식 검색 실패)`);
       
       // 특별 케이스: 01052995980과 같은 형식이 +821052995980으로 저장된 경우 처리
+      let userFound = false;
+      
       if (phoneNumber.startsWith('010')) {
         console.log(`[Auth API] 특별 케이스 확인: 국제 형식으로 저장된 번호 검색 시도`);
         // 국제 형식으로 변환
@@ -168,6 +170,7 @@ export async function POST(req: NextRequest) {
           console.log(`[Auth API] 국제 형식으로 사용자 발견`);
           querySnapshot = intQuerySnapshot;
           foundPhoneFormat = '국제 형식 (+82)';
+          userFound = true;
         } else {
           // + 기호 없는 국제 형식 시도
           const rawIntFormat = internationalFormat.substring(1); // +82 -> 82
@@ -180,28 +183,32 @@ export async function POST(req: NextRequest) {
             console.log(`[Auth API] + 없는 국제 형식으로 사용자 발견`);
             querySnapshot = rawIntQuerySnapshot;
             foundPhoneFormat = '국제 형식 (82)';
+            userFound = true;
           }
         }
       }
       
-      // 디버그: 모든 사용자 출력
-      if (process.env.NODE_ENV === 'development') {
-        try {
-          const allUsersSnapshot = await getDocs(usersRef);
-          console.log(`[Auth API] 전체 사용자 목록 (${allUsersSnapshot.size}명):`);
-          allUsersSnapshot.forEach(doc => {
-            const userData = doc.data();
-            console.log(`- ID: ${userData.uid}, 전화번호: ${userData.phoneNumber}, 이름: ${userData.name}`);
-          });
-        } catch (listErr) {
-          console.error('[Auth API] 전체 사용자 조회 오류:', listErr);
+      // 사용자를 찾지 못한 경우에만 오류 반환
+      if (!userFound) {
+        // 디버그: 모든 사용자 출력
+        if (process.env.NODE_ENV === 'development') {
+          try {
+            const allUsersSnapshot = await getDocs(usersRef);
+            console.log(`[Auth API] 전체 사용자 목록 (${allUsersSnapshot.size}명):`);
+            allUsersSnapshot.forEach(doc => {
+              const userData = doc.data();
+              console.log(`- ID: ${userData.uid}, 전화번호: ${userData.phoneNumber}, 이름: ${userData.name}`);
+            });
+          } catch (listErr) {
+            console.error('[Auth API] 전체 사용자 조회 오류:', listErr);
+          }
         }
+        
+        return NextResponse.json(
+          { success: false, message: '등록되지 않은 전화번호입니다.' },
+          { status: 401 }
+        );
       }
-      
-      return NextResponse.json(
-        { success: false, message: '등록되지 않은 전화번호입니다.' },
-        { status: 401 }
-      );
     }
     
     // 첫 번째 일치하는 사용자 가져오기
