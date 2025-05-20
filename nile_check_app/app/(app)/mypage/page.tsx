@@ -31,6 +31,7 @@ export default function MyPage() {
   const [error, setError] = useState<string | null>(null);
   
   // 페이지 로딩 시 세션 상태 강제 확인
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     const initPage = async () => {
       setIsLocalLoading(true);
@@ -58,6 +59,7 @@ export default function MyPage() {
     initPage();
     // Only run this effect once when the component mounts
   }, []);
+  /* eslint-enable react-hooks/exhaustive-deps */
   
   // 사용자 정보가 로드되면 상태 업데이트
   const [userData, setUserData] = useState<UserData>({

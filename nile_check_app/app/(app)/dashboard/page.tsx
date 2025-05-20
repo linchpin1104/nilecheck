@@ -388,6 +388,7 @@ export default function DashboardPage() {
   }, [suggestions]);
 
   // 페이지 로딩 시 세션 상태 강제 확인 및 데이터 동기화
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     const initPage = async () => {
       setIsRefreshing(true);
@@ -411,6 +412,7 @@ export default function DashboardPage() {
     initPage();
     // Only run this effect once when the component mounts
   }, []);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   if (!isInitialized || isLoading) {
     return (
