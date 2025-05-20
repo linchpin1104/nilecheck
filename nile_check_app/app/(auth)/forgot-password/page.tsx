@@ -39,6 +39,7 @@ export default function ForgotPasswordPage() {
       
       // 비밀번호 찾기 요청 구현 예정
       // 현재는 가짜 응답만 처리
+      console.log("비밀번호 찾기 요청:", formattedPhoneNumber);
       setTimeout(() => {
         setSuccess(true);
         setIsSubmitting(false);

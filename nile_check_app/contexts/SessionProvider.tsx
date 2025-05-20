@@ -65,7 +65,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const checkSession = useCallback(async () => {
     // 세션 체크 호출 중복 방지
     const now = Date.now();
-    if (now - lastSessionCheckTime.current < 3000) { // 3초 디바운스
+    if (now - lastSessionCheckTime.current < 2000) { // 2초 디바운스 (3초→2초로 감소)
       console.log("[SessionProvider] 세션 체크 요청이 너무 빈번합니다. 무시합니다.");
       return prevAuthState.current ?? false;
     }
@@ -100,6 +100,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         
         // 세션 복구 API 요청
         try {
+          console.log("[SessionProvider] 세션 복구 API 호출");
           const restoreResponse = await fetch("/api/auth/session", {
             method: 'POST',
             headers: {
@@ -109,7 +110,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             body: JSON.stringify({
               action: 'restore',
               user: localAuthData.currentUser
-            })
+            }),
+            cache: 'no-store'
           });
           
           if (restoreResponse.ok) {
@@ -124,12 +126,25 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               setIsLoading(false);
               prevAuthState.current = true;
               sessionCheckFailCount.current = 0;
+              
+              // 쿠키 존재 여부 다시 확인 (세션 복구 후)
+              const cookieCheckAfterRestore = document.cookie.includes('nile-check-auth=');
+              console.log("[SessionProvider DEBUG] 세션 복구 후 쿠키 존재 여부:", cookieCheckAfterRestore);
+              
               return true;
             }
           }
+          console.log("[SessionProvider] 세션 복구 실패:", restoreResponse.status);
         } catch (restoreError) {
           console.error("[SessionProvider] 세션 복구 중 오류:", restoreError);
         }
+      }
+      
+      // 이미 쿠키가 있고 인증 상태인 경우는 빠르게 반환
+      if (hasCookie && isAuthenticated && user) {
+        console.log("[SessionProvider] 이미 인증된 상태입니다");
+        setIsLoading(false);
+        return true;
       }
       
       // 쿠키가 없고 세션 복구도 실패했으면 인증 안된 상태로 처리
@@ -147,6 +162,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
       
       // 쿠키가 있으면 서버에 세션 확인
+      console.log("[SessionProvider] 서버에 세션 상태 확인");
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5초 타임아웃
       
@@ -157,7 +173,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           'Pragma': 'no-cache'
         },
         cache: 'no-store',
-        signal: controller.signal
+        signal: controller.signal,
+        // 캐시되지 않도록 타임스탬프 추가
+        next: { revalidate: 0 }
       });
       
       clearTimeout(timeoutId);
@@ -223,7 +241,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("[SessionProvider] 세션 확인 중 오류:", error);
       
-      // 로컬 스토리지에서 백업 인증 정보 확인 시도
+      // 로컬 스토리지에서, 세션 API 요청 실패 시 백업으로 설정
       try {
         const localStorageAuth = localStorage.getItem('nile-check-auth');
         if (localStorageAuth) {

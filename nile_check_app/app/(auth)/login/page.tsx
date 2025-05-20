@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CountrySelector } from "@/components/ui/country-selector";
 import { validatePhoneNumber, formatPhoneNumber } from "@/lib/verification/phone-service";
-import { useSession, sessionStore } from "@/contexts/SessionProvider";
+import { useSession } from "@/contexts/SessionProvider";
 
 // 서버 컴포넌트가 이 페이지를 정적 생성하지 않도록 지정
 export const dynamic = 'force-dynamic';
@@ -20,6 +20,7 @@ export const dynamic = 'force-dynamic';
 // SearchParams를 사용하는 클라이언트 컴포넌트
 function LoginForm() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { isLoading: authIsLoading } = useAuthStore();
   const { checkSession } = useSession();
   
@@ -101,9 +102,6 @@ function LoginForm() {
         console.log("로그인 성공, 세션 갱신 후 페이지 이동");
         
         try {
-          // 세션 정보 갱신
-          await checkSession();
-          
           // 로컬 스토리지에 추가 인증 정보 저장 (세션 복구용)
           const authData = JSON.stringify({
             isAuthenticated: true,
@@ -112,58 +110,28 @@ function LoginForm() {
           localStorage.setItem('nile-check-auth', authData);
           console.log("로컬 스토리지에 인증 정보 저장됨:", result.user?.id || "사용자 ID 없음");
           
+          // 세션 정보 갱신
+          await checkSession();
+          
           // 쿠키 확인
           const hasCookie = document.cookie.includes('nile-check-auth=');
           console.log("인증 쿠키 존재 여부:", hasCookie ? "있음" : "없음");
           
-          if (!hasCookie) {
-            console.warn("인증 쿠키가 설정되지 않았습니다. 서버 응답 확인 필요");
-          }
+          // Next.js 라우터를 사용하여 리다이렉트 실행
+          const redirectTo = callbackUrl || result.redirectUrl || "/dashboard";
+          console.log("리다이렉션 시작 - 대상:", redirectTo);
           
-          // 쿠키가 설정되었는지 다시 확인
-          const checkCookieInterval = setInterval(() => {
-            const hasCookie = document.cookie.includes('nile-check-auth=');
-            console.log("인증 쿠키 확인 중:", hasCookie ? "있음" : "없음");
-            
-            if (hasCookie) {
-              clearInterval(checkCookieInterval);
-              
-              // 추가 지연 후 리다이렉션
-              console.log("쿠키 확인됨, 리다이렉션 시작 - 대상:", result.redirectUrl || callbackUrl || "/dashboard");
-              
-              // 세션 스토어 상태 확인
-              console.log("세션 스토어 상태:", 
-                sessionStore.isAuthenticated ? "인증됨" : "인증안됨", 
-                sessionStore.userId || "ID 없음");
-              
-              if (callbackUrl) {
-                window.location.href = callbackUrl;
-              } else if (result.redirectUrl) {
-                window.location.href = result.redirectUrl;
-              } else {
-                window.location.href = "/dashboard";
-              }
-            }
-          }, 300); // 300ms마다 쿠키 확인
-          
-          // 최대 5초 후에 강제 리다이렉션 (쿠키가 없어도)
+          // 지연 후 라우터 리다이렉션 실행
           setTimeout(() => {
-            clearInterval(checkCookieInterval);
-            console.log("최대 대기 시간 초과, 강제 리다이렉션");
+            console.log("router.push 실행:", redirectTo);
+            router.push(redirectTo);
             
-            // 백업 방법: 로컬 스토리지 상태를 다시 확인
-            const storedAuth = localStorage.getItem('nile-check-auth');
-            const isAuthenticated = storedAuth ? true : false;
-            console.log("로컬 스토리지 인증 상태:", isAuthenticated ? "있음" : "없음");
-            
-            if (callbackUrl) {
-              window.location.href = callbackUrl;
-            } else if (result.redirectUrl) {
-              window.location.href = result.redirectUrl;
-            } else {
-              window.location.href = "/dashboard";
-            }
-          }, 5000);
+            // 백업 리다이렉션: 라우터 푸시와 윈도우 로케이션을 모두 사용
+            setTimeout(() => {
+              console.log("백업 리다이렉션: window.location.href");
+              window.location.href = redirectTo;
+            }, 1000); // 1초 후에도 라우터가 작동하지 않으면 window.location 사용
+          }, 100);
         } catch (err) {
           console.error("세션 갱신 중 오류:", err);
           setError("세션 갱신 중 오류가 발생했습니다. 다시 시도해주세요.");
