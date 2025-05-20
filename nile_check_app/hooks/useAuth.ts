@@ -72,6 +72,19 @@ export default function useAuth() {
           });
           sessionStore.updateUserId(sessionCache.data.user.id);
           sessionStore.isAuthenticated = sessionCache.data.isAuthenticated;
+          
+          // 로컬 스토리지에도 세션 정보 유지 (추가)
+          if (sessionCache.data.isAuthenticated && typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('nile-check-auth', JSON.stringify({
+                isAuthenticated: true, 
+                currentUser: sessionCache.data.user
+              }));
+              console.log('[useAuth] 로컬 스토리지에 세션 정보 저장 완료');
+            } catch (e) {
+              console.error('[useAuth] 로컬 스토리지 저장 실패:', e);
+            }
+          }
         }
         
         setState(prev => ({ 
@@ -173,6 +186,19 @@ export default function useAuth() {
         // 캐시 업데이트
         sessionCache.data = { isAuthenticated: true, user: data.user };
         sessionCache.timestamp = now;
+        
+        // 로컬 스토리지에 세션 정보 저장 (추가)
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('nile-check-auth', JSON.stringify({
+              isAuthenticated: true, 
+              currentUser: data.user
+            }));
+            console.log('[useAuth] 로컬 스토리지에 세션 정보 저장 완료 (API 응답)');
+          } catch (e) {
+            console.error('[useAuth] 로컬 스토리지 저장 실패:', e);
+          }
+        }
       } else {
         console.log('[useAuth] 로그인되지 않은 세션');
         setState(prev => ({ 

@@ -111,7 +111,7 @@ function LoginForm() {
             } else {
               window.location.href = "/dashboard";
             }
-          }, 100); // 짧은 지연 후 리다이렉트하여 세션 체크가 완료될 시간 확보
+          }, 500); // 지연 시간을 늘려 세션 체크가 완료될 시간 확보
         } catch (err) {
           console.error("세션 갱신 중 오류:", err);
           setError("세션 갱신 중 오류가 발생했습니다. 다시 시도해주세요.");

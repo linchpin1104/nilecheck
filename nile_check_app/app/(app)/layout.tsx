@@ -49,6 +49,33 @@ export default function AppLayout({
     }
   }, [isAuthenticated, user, isLoading]);
   
+  // 세션 복구 시도 - 페이지 로드 시 한 번만 수행
+  useEffect(() => {
+    const tryRestoreSession = async () => {
+      // 로그인되어 있지 않은 경우에만 시도
+      if (!isAuthenticated && !isLoading) {
+        try {
+          // 로컬 스토리지에서 세션 정보 확인
+          const authData = localStorage.getItem('nile-check-auth');
+          if (authData) {
+            console.log('[AppLayout] 로컬 스토리지에서 세션 복구 시도');
+            const parsed = JSON.parse(authData);
+            
+            if (parsed.isAuthenticated && parsed.currentUser) {
+              // 세션 확인 API 호출로 실제 세션 유효성 검증
+              console.log('[AppLayout] 세션 복구 - 서버에 세션 확인');
+              await checkSession();
+            }
+          }
+        } catch (error) {
+          console.error('[AppLayout] 세션 복구 실패:', error);
+        }
+      }
+    };
+    
+    tryRestoreSession();
+  }, []); // 의존성 배열 비움 - 컴포넌트 마운트 시 한 번만 실행
+  
   return (
     <div className="flex flex-col min-h-screen">
       <header className="bg-white border-b shadow-sm sticky top-0 z-10">

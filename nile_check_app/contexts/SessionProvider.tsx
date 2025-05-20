@@ -188,25 +188,35 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (!sessionChecked) {
       checkSession();
     }
-  }, [sessionChecked, checkSession]);
+  }, [sessionChecked]);
 
-  // 페이지 변경 시 세션 재검사
+  // 페이지 변경 시 세션 재검사 (개선된 로직)
   useEffect(() => {
     // 쿠키가 있는데 인증 상태가 아니면 세션 확인
     const checkAuthCookie = () => {
       const hasCookie = document.cookie.includes('nile-check-auth=');
       
-      // 인증 상태와 쿠키 상태가 일치하지 않을 때만 세션을 확인
-      if ((hasCookie && !isAuthenticated) || (!hasCookie && isAuthenticated)) {
-        if (hasCookie && !isAuthenticated) {
-          console.log('[SessionProvider] 인증 쿠키 발견, 세션 재확인');
-          checkSession();
-        } else if (!hasCookie && isAuthenticated) {
-          console.log('[SessionProvider] 인증 쿠키 없음, 로그아웃 처리');
+      // 인증 상태와 쿠키 상태가 명확히 불일치할 때만 세션을 재확인
+      // 또한, 최근 5초 이내에 세션 체크를 했다면 다시 확인하지 않음 (중복 체크 방지)
+      const now = Date.now();
+      const recentlyChecked = (now - lastSessionCheckTime.current) < 5000;
+      
+      if (!recentlyChecked && hasCookie && !isAuthenticated) {
+        console.log('[SessionProvider] 인증 쿠키 발견, 세션 재확인');
+        checkSession();
+      } else if (!hasCookie && isAuthenticated) {
+        // 쿠키가 없는데 인증 상태이면, 로컬 스토리지 데이터도 확인
+        const authData = localStorage.getItem('nile-check-auth');
+        if (!authData) {
+          console.log('[SessionProvider] 인증 쿠키와 로컬 스토리지 모두 없음, 로그아웃 처리');
           setIsAuthenticated(false);
           setUser(null);
           sessionStore.updateUserId(null);
           sessionStore.isAuthenticated = false;
+        } else {
+          // 로컬 스토리지에 데이터가 있으면 세션 재확인 시도
+          console.log('[SessionProvider] 쿠키 없지만 로컬 스토리지 인증 정보 발견, 세션 복구 시도');
+          checkSession();
         }
       }
     };
@@ -243,7 +253,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (!sessionChecked && !isLoading) {
       tryRestoreFromLocalStorage();
     }
-  }, [pathname, sessionChecked, isAuthenticated, isLoading, user, checkSession]);
+  }, [pathname, sessionChecked, isAuthenticated, isLoading, user]);
 
   // 로그인 함수
   const login = (userData: User) => {
@@ -253,6 +263,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     sessionStore.isAuthenticated = true;
     prevAuthState.current = true;
     sessionCheckFailCount.current = 0; // 로그인 성공 시 실패 카운터 리셋
+    
+    // 로컬 스토리지에 인증 상태 저장 (추가)
+    try {
+      localStorage.setItem('nile-check-auth', JSON.stringify({
+        isAuthenticated: true,
+        currentUser: userData
+      }));
+      console.log('[SessionProvider] 로그인 성공 - 로컬 스토리지에 인증 상태 저장됨');
+    } catch (e) {
+      console.error('[SessionProvider] 로컬 스토리지 저장 실패:', e);
+    }
   };
 
   // 로그아웃 함수
@@ -267,6 +288,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         sessionStore.isAuthenticated = false;
         prevAuthState.current = false;
         sessionCheckFailCount.current = 0; // 로그아웃 시 실패 카운터 리셋
+        
+        // 로컬 스토리지에서 인증 상태 제거 (추가)
+        try {
+          localStorage.removeItem('nile-check-auth');
+          console.log('[SessionProvider] 로그아웃 성공 - 로컬 스토리지에서 인증 상태 제거됨');
+        } catch (e) {
+          console.error('[SessionProvider] 로컬 스토리지 제거 실패:', e);
+        }
+        
         router.push("/login");
       })
       .catch((error) => {

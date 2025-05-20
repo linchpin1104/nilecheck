@@ -75,8 +75,10 @@ function RegisterForm() {
       });
       
       if (result.success) {
-        // Navigate to dashboard on success
-        router.push("/log-activity");
+        // 회원가입 후 페이지 이동 방식 변경 - window.location 사용하여 전체 페이지 새로고침
+        setTimeout(() => {
+          window.location.href = "/dashboard";
+        }, 500); // 지연 시간을 늘려 세션 체크가 완료될 시간 확보
       } else {
         setError(result.message);
       }
