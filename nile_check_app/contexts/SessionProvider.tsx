@@ -53,6 +53,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // 세션 검증 실패 카운터
   const sessionCheckFailCount = useRef<number>(0);
 
+  // Add these new refs and effect for the "justLoggedIn" grace period
+  const justLoggedIn = useRef(false);
+  const justLoggedInTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    // Cleanup timeout on unmount
+    return () => {
+      if (justLoggedInTimeoutRef.current) {
+        clearTimeout(justLoggedInTimeoutRef.current);
+      }
+    };
+  }, []); // Empty dependency array means this runs once on mount for setup and cleanup on unmount
+
   // 사용자 ID 가져오기 함수 (항상 최신 상태 반환)
   const getUserId = () => {
     if (user?.id) {
@@ -63,6 +76,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   // 세션 체크 함수
   const checkSession = useCallback(async () => {
+    // START: Add justLoggedIn check
+    if (justLoggedIn.current) {
+      console.log("[SessionProvider] checkSession: API call skipped because justLoggedIn is true.");
+      // login() should have set isAuthenticated and user.
+      // This ensures we don't flip to loading or a false negative.
+      if (!isAuthenticated && user) { // 'user' state from useState
+        console.log("[SessionProvider] checkSession (justLoggedIn): Ensuring isAuthenticated is true based on user data.");
+        setIsAuthenticated(true); 
+      }
+      setIsLoading(false); 
+      return true; // Assume session is valid as login() just established it
+    }
+    // END: Add justLoggedIn check
+
     const now = Date.now();
     if (now - lastSessionCheckTime.current < 2000) {
       console.log("[SessionProvider] Debounced session check.");
@@ -243,7 +270,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // If not redirecting, return the previous state or false if no previous state
       return prevAuthState.current ?? false;
     }
-  }, [pathname, router, isAuthenticated, user]); // Added isAuthenticated and user to dependency array
+  }, [pathname, router, isAuthenticated, user, setIsLoading, setIsAuthenticated]); // Added setIsLoading, setIsAuthenticated
 
   // 초기 세션 체크
   useEffect(() => {
@@ -312,59 +339,77 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, [pathname, sessionChecked, isAuthenticated, isLoading, user, checkSession]);
 
-  // 로그인 함수
-  const login = (userData: User) => {
-    console.log("[SessionProvider] Login function called for user:", userData.id);
-    setUser(userData);
+  const login = useCallback((userData: User) => {
+    console.log("[SessionProvider] login function called with user:", userData);
+
+    if (justLoggedInTimeoutRef.current) {
+      clearTimeout(justLoggedInTimeoutRef.current);
+    }
+    justLoggedIn.current = true;
+    console.log('[SessionProvider] justLoggedIn flag set to true.');
+    // Increased timeout slightly to 1500ms to be safer
+    justLoggedInTimeoutRef.current = setTimeout(() => {
+      justLoggedIn.current = false;
+      console.log('[SessionProvider] justLoggedIn flag reset to false after 1500ms timeout.');
+    }, 1500); 
+
     setIsAuthenticated(true);
-    sessionStore.updateUserId(userData.id);
-    sessionStore.isAuthenticated = true;
-    prevAuthState.current = true;
-    sessionCheckFailCount.current = 0; 
+    setUser(userData);
+    // setAuthError(null); // If authError state exists, uncomment and add to deps if used
+    sessionCheckFailCount.current = 0;
+    prevAuthState.current = true; // User is now considered authenticated
+    
+    sessionStore.updateUserId(userData.id); // Sync with legacy sessionStore
+    sessionStore.isAuthenticated = true;    // Sync with legacy sessionStore
     
     try {
-      localStorage.setItem('nile-check-auth', JSON.stringify({
-        isAuthenticated: true,
-        currentUser: userData
-      }));
-      console.log('[SessionProvider] Auth state saved to LocalStorage on login.');
-    } catch (e) {
-      console.error('[SessionProvider] Failed to save to LocalStorage on login:', e);
+      localStorage.setItem('nile-check-auth', JSON.stringify({ isAuthenticated: true, currentUser: userData }));
+      console.log("[SessionProvider] Auth state saved to LocalStorage after login.");
+    } catch (storageError) {
+      console.error("[SessionProvider] Failed to save auth state to LocalStorage after login:", storageError);
     }
-  };
 
-  // 로그아웃 함수
-  const logout = () => {
-    console.log("[SessionProvider] Logout function called.");
-    fetch("/api/auth/logout", { method: "POST" })
-      .then(async (res) => {
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          console.error("Logout API call failed:", res.status, errorData.message || "No error message");
-        } else {
-          console.log("Logout API call successful.");
-        }
-      })
-      .catch((error) => {
-        console.error("Error during logout API call:", error);
-      })
-      .finally(() => {
-        setUser(null);
-        setIsAuthenticated(false);
-        sessionStore.updateUserId(null);
-        sessionStore.isAuthenticated = false;
-        prevAuthState.current = false;
-        sessionCheckFailCount.current = 0;
-        try {
-          localStorage.removeItem('nile-check-auth');
-          localStorage.removeItem('last_user_id');
-          console.log('[SessionProvider] Auth state removed from LocalStorage on logout.');
-        } catch (e) {
-          console.error('[SessionProvider] Failed to remove from LocalStorage on logout:', e);
-        }
-        router.push("/login?logout=true");
-      });
-  };
+    console.log("[SessionProvider] State updated after login. isAuthenticated:", true, "User:", userData.id, "FailCount reset to 0");
+    setIsLoading(false); // Ensure loading is false after login actions are complete
+  }, [setIsAuthenticated, setUser, setIsLoading]); // Added setIsLoading. Add setAuthError if used and it's a state setter.
+
+  const logout = useCallback(() => {
+    console.log("[SessionProvider] logout function called.");
+    // Optional: Clear the justLoggedIn flag immediately if logout is called,
+    // though it primarily affects post-login checks.
+    if (justLoggedInTimeoutRef.current) {
+      clearTimeout(justLoggedInTimeoutRef.current);
+      justLoggedInTimeoutRef.current = null;
+    }
+    justLoggedIn.current = false;
+
+    setIsAuthenticated(false);
+    setUser(null);
+    // setAuthError(null); // If authError state exists
+    sessionCheckFailCount.current = 0; // Reset fail count on logout
+    prevAuthState.current = false; // User is no longer authenticated
+    
+    sessionStore.updateUserId(null); // Sync with legacy sessionStore
+    sessionStore.isAuthenticated = false; // Sync with legacy sessionStore
+
+    try {
+      // Standard cookie removal
+      document.cookie = "nile-check-auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
+      localStorage.removeItem('nile-check-auth');
+      localStorage.removeItem('last_user_id'); // Ensure this is cleared
+      console.log("[SessionProvider] Cleared auth cookie and LocalStorage on logout.");
+    } catch (e) {
+      console.error("[SessionProvider] Error clearing cookie/localStorage on logout:", e);
+    }
+    
+    // Redirect to login page
+    // Check if already on a public path to avoid redundant navigation or errors
+    const publicPaths = ['/login', '/register', '/forgot-password'];
+    if (pathname && !publicPaths.includes(pathname)) { // Check current pathname is not null
+      router.push("/login?action=logout");
+    }
+    setIsLoading(false); // Ensure loading state is false
+  }, [pathname, router, setIsAuthenticated, setUser, setIsLoading]); // Added setIsLoading and other relevant dependencies
 
   return (
     <SessionContext.Provider

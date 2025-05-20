@@ -245,19 +245,14 @@ export function setAuthCookie(response: NextResponse, token: string) {
     value: token,
     httpOnly: true,
     path: '/',
-    secure: secure,
+    secure: true, // Always use secure in modern browsers
     maxAge: 60 * 60 * 24 * 7, // 7일
     sameSite: 'lax',
-    domain: undefined // 도메인 지정을 제거하여 현재 도메인에만 쿠키 적용
+    // domain은 지정하지 않아 현재 도메인에만 적용되도록 함
   });
   
   // Set cookie in headers directly as well for maximum compatibility
-  let cookieHeader = `${TOKEN_COOKIE_NAME}=${token}; Path=/; Max-Age=${60 * 60 * 24 * 7}; HttpOnly; SameSite=Lax`;
-  
-  // Secure flag only in production
-  if (secure) {
-    cookieHeader += '; Secure';
-  }
+  const cookieHeader = `${TOKEN_COOKIE_NAME}=${token}; Path=/; Max-Age=${60 * 60 * 24 * 7}; HttpOnly; SameSite=Lax; Secure`;
   
   // Append to existing Set-Cookie headers if any
   const existingCookies = response.headers.get('Set-Cookie');
@@ -280,10 +275,10 @@ export function clearAuthCookie(response: NextResponse) {
     value: '',
     httpOnly: true,
     path: '/',
-    secure: process.env.NODE_ENV === 'production',
+    secure: true, // Always use secure in modern browsers
     maxAge: 0,
     sameSite: 'lax',
-    domain: undefined // 도메인 지정을 제거하여 현재 도메인에만 쿠키 적용
+    // domain은 지정하지 않아 현재 도메인에만 적용되도록 함
   });
   
   // 전화번호 쿠키도 제거
@@ -293,11 +288,12 @@ export function clearAuthCookie(response: NextResponse) {
     path: '/',
     maxAge: 0,
     sameSite: 'lax',
+    secure: true,
   });
   
   // Clear cookie in headers directly as well for maximum compatibility
-  const cookieHeader = `${TOKEN_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`;
-  const phoneHeader = `user-phone=; Path=/; Max-Age=0; SameSite=Lax`;
+  const cookieHeader = `${TOKEN_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax; Secure`;
+  const phoneHeader = `user-phone=; Path=/; Max-Age=0; SameSite=Lax; Secure`;
   
   // Append to existing Set-Cookie headers if any
   const existingCookies = response.headers.get('Set-Cookie');

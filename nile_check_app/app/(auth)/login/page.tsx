@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,9 +20,8 @@ export const dynamic = 'force-dynamic';
 // SearchParams를 사용하는 클라이언트 컴포넌트
 function LoginForm() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { isLoading: authIsLoading } = useAuthStore();
-  const { checkSession } = useSession();
+  const { login: contextLogin } = useSession();
   
   const [phoneNumber, setPhoneNumber] = useState("");
   const [countryCode, setCountryCode] = useState("KR");
@@ -82,65 +81,60 @@ function LoginForm() {
     setIsSubmitting(true);
     
     try {
-      // 전화번호를 E.164 형식으로 변환 (서버에서 처리할 수 있게)
       const formattedPhoneNumber = formatPhoneNumber(phoneNumber, countryCode);
       console.log("로그인 시도:", { formattedPhoneNumber, password });
       
-      // 서버 API 직접 호출
       const response = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumber: formattedPhoneNumber, password }),
       });
       
       const result = await response.json();
       console.log("로그인 결과:", result);
       
-      if (result.success) {
-        console.log("로그인 성공, 세션 갱신 후 페이지 이동");
+      if (result.success && result.user) {
+        console.log("로그인 성공, 세션 컨텍스트 업데이트 후 페이지 이동");
         
-        try {
-          // 로컬 스토리지에 추가 인증 정보 저장 (세션 복구용)
-          const authData = JSON.stringify({
-            isAuthenticated: true,
-            currentUser: result.user
-          });
-          localStorage.setItem('nile-check-auth', authData);
-          console.log("로컬 스토리지에 인증 정보 저장됨:", result.user?.id || "사용자 ID 없음");
-          
-          // 세션 정보 갱신
-          await checkSession();
-          
-          // 쿠키 확인
-          const hasCookie = document.cookie.includes('nile-check-auth=');
-          console.log("인증 쿠키 존재 여부:", hasCookie ? "있음" : "없음");
-          
-          // Next.js 라우터를 사용하여 리다이렉트 실행
-          const redirectTo = callbackUrl || result.redirectUrl || "/log-activity";
-          console.log("리다이렉션 시작 - 대상:", redirectTo);
-          
-          // 지연 후 라우터 리다이렉션 실행
-          setTimeout(() => {
-            console.log("router.push 실행:", redirectTo);
-            router.push(redirectTo);
-            
-            // 백업 리다이렉션: 라우터 푸시와 윈도우 로케이션을 모두 사용
-            setTimeout(() => {
-              console.log("백업 리다이렉션: window.location.href");
-              window.location.href = redirectTo;
-            }, 1000); // 1초 후에도 라우터가 작동하지 않으면 window.location 사용
-          }, 100);
-        } catch (err) {
-          console.error("세션 갱신 중 오류:", err);
-          setError("세션 갱신 중 오류가 발생했습니다. 다시 시도해주세요.");
-          setIsSubmitting(false);
-        }
-        return;
+        // 1. Store in localStorage (for persistence across browser close/reopen)
+        const authData = JSON.stringify({
+          isAuthenticated: true,
+          currentUser: result.user
+        });
+        localStorage.setItem('nile-check-auth', authData);
+        console.log("로컬 스토리지에 인증 정보 저장됨:", result.user?.id || "사용자 ID 없음");
+
+        // 2. Update SessionProvider context state
+        // Assuming result.user is compatible with the User type expected by contextLogin
+        contextLogin(result.user); 
+        
+        // 3. Redirect
+        const redirectTo = callbackUrl || result.redirectUrl || "/log-activity";
+        console.log("리다이렉션 시작 - 대상:", redirectTo);
+        
+        // Small delay to help ensure state updates propagate before navigation
+        setTimeout(() => {
+          // router.push might switch domains in some Vercel preview environments
+          // Use window.location with the current origin to keep the same domain
+          const currentOrigin = window.location.origin;
+          // Check if redirectTo is a relative path (starts with /)
+          if (redirectTo.startsWith('/')) {
+            // Preserve current domain by using current origin
+            window.location.href = `${currentOrigin}${redirectTo}`;
+          } else {
+            // If it's an absolute URL, use it as is (though this is unlikely)
+            window.location.href = redirectTo;
+          }
+        }, 100); // 100ms delay might be enough
+        
+        // No longer calling checkSession() here, SessionProvider on next page will handle it.
+        // await checkSession(); 
+        
+        // setIsSubmitting is handled in finally block
+        return; // Return to prevent falling through to error handling for success case
       } else {
-        console.log("로그인 실패:", result.message);
-        setError(result.message);
+        console.log("로그인 실패:", result.message || "사용자 정보 없음");
+        setError(result.message || "로그인에 실패했습니다. 사용자 정보를 확인해주세요.");
       }
     } catch (err) {
       console.error("로그인 예외 발생:", err);

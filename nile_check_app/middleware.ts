@@ -121,7 +121,9 @@ export async function middleware(request: NextRequest) {
           name: 'prevent-redirect-loop',
           value: 'true',
           maxAge: 30,
-          path: '/'
+          path: '/',
+          sameSite: 'lax',
+          secure: true
         });
       }
       
@@ -145,7 +147,9 @@ export async function middleware(request: NextRequest) {
       name: 'prevent-redirect-loop',
       value: '',
       maxAge: 0,
-      path: '/'
+      path: '/',
+      sameSite: 'lax',
+      secure: true
     });
   }
   

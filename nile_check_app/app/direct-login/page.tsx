@@ -2,12 +2,15 @@
 
 import { createTestUser, setDirectAuth, checkAuthData, clearAuthData } from "@/lib/fix-auth";
 import { useState, useEffect } from "react";
+import { useSession } from "@/contexts/SessionProvider";
 
 export default function DirectLoginPage() {
   const [authStatus, setAuthStatus] = useState<{cookie: boolean, localStorage: boolean}>({
     cookie: false,
     localStorage: false
   });
+  
+  const { login: contextLogin } = useSession();
   
   // 페이지 로드 시 인증 상태 확인
   useEffect(() => {
@@ -73,14 +76,20 @@ export default function DirectLoginPage() {
                 const authResult = setDirectAuth(testUser);
                 console.log("인증 설정 결과:", authResult);
                 
-                // 인증 상태 갱신
-                checkAuthStatus();
-                
+                // 세션 컨텍스트 업데이트
                 if (authResult.success) {
+                  // SessionProvider의 login 함수 호출하여 클라이언트 상태 업데이트
+                  contextLogin(testUser);
+                  
+                  // 인증 상태 갱신
+                  checkAuthStatus();
+                  
                   alert("로그인 성공! 대시보드로 이동합니다.");
-                  // 짧은 지연 후 이동
+                  // 지연 후 이동 - pathname 기반 상대 경로 사용
                   setTimeout(() => {
-                    window.location.href = '/dashboard';
+                    // 현재 URL의 오리진을 유지하여 도메인 간 전환 방지
+                    const currentOrigin = window.location.origin;
+                    window.location.href = `${currentOrigin}/dashboard`;
                   }, 500);
                 } else {
                   alert("로그인 실패: " + authResult.message);
@@ -120,8 +129,8 @@ export default function DirectLoginPage() {
               onClick={() => {
                 const result = clearAuthData();
                 
-                // 쿠키도 삭제 시도
-                document.cookie = "nile-check-auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+                // 쿠키도 삭제 시도 - SameSite와 Secure 속성 추가
+                document.cookie = "nile-check-auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
                 
                 checkAuthStatus();
                 alert(result.message);
@@ -167,6 +176,13 @@ export default function DirectLoginPage() {
         >
           인증 상태 새로고침
         </button>
+      </div>
+      
+      <div className="mt-6 p-4 border border-blue-200 bg-blue-50 rounded-md">
+        <h2 className="text-lg font-semibold mb-2">현재 도메인 정보</h2>
+        <p className="text-sm mb-1">현재 URL: <code className="bg-white px-1 rounded">{typeof window !== 'undefined' ? window.location.href : '클라이언트에서 확인 필요'}</code></p>
+        <p className="text-sm mb-1">현재 도메인: <code className="bg-white px-1 rounded">{typeof window !== 'undefined' ? window.location.hostname : '클라이언트에서 확인 필요'}</code></p>
+        <p className="text-sm">쿠키 도메인은 현재 브라우저 URL의 도메인과 일치해야 합니다.</p>
       </div>
     </div>
   );
