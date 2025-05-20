@@ -12,7 +12,7 @@ import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CountrySelector } from "@/components/ui/country-selector";
 import { validatePhoneNumber, formatPhoneNumber } from "@/lib/verification/phone-service";
-import { useSession } from "@/contexts/SessionProvider";
+import { useSession, sessionStore } from "@/contexts/SessionProvider";
 
 // 서버 컴포넌트가 이 페이지를 정적 생성하지 않도록 지정
 export const dynamic = 'force-dynamic';

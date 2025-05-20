@@ -2,11 +2,6 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
-interface UserPayload {
-  id: string;
-  [key: string]: string | number | boolean | null | undefined;
-}
-
 // JWT 시크릿 키
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'nile-check-default-secret-key-for-development'
@@ -51,8 +46,8 @@ export async function middleware(request: NextRequest) {
       if (verified && verified.payload && verified.payload.user) {
         isAuthenticated = true;
         // 사용자 ID 추출 - 객체 형태로 통일
-        const userPayload = verified.payload.user as any;
-        userId = userPayload.id || '';
+        const userPayload = verified.payload.user as Record<string, unknown>;
+        userId = userPayload.id as string || '';
         console.log(`[Middleware] Token verified: user=${userId}, auth=${isAuthenticated}`);
       }
     } catch (error) {

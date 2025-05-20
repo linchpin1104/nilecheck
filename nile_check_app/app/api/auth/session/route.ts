@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from '@/lib/auth-server';
+import { getServerSession, createSession, setAuthCookie } from '@/lib/auth-server';
 
 // 응답에 캐싱 헤더 추가 함수
 function addCacheHeaders(response: NextResponse) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useState, useEffect, ReactNode, useContext, useRef } from "react";
+import { createContext, useState, useEffect, ReactNode, useContext, useRef, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { User } from "@/lib/auth-server";
 
@@ -40,7 +40,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [sessionChecked, setSessionChecked] = useState<boolean>(false);
-  const [sessionCheckFailed, setSessionCheckFailed] = useState<boolean>(false);
   
   // 이전 인증 상태를 저장하는 ref
   const prevAuthState = useRef<boolean | null>(null);
@@ -51,6 +50,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
+  // 세션 검증 실패 카운터
+  const sessionCheckFailCount = useRef<number>(0);
+
   // 사용자 ID 가져오기 함수 (항상 최신 상태 반환)
   const getUserId = () => {
     if (user?.id) {
@@ -60,7 +62,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   };
 
   // 세션 체크 함수
-  const checkSession = async () => {
+  const checkSession = useCallback(async () => {
     // 세션 체크 호출 중복 방지
     const now = Date.now();
     if (now - lastSessionCheckTime.current < 3000) { // 3초 디바운스
@@ -119,7 +121,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               sessionStore.updateUserId(localAuthData.currentUser.id);
               sessionStore.isAuthenticated = true;
               setSessionChecked(true);
-              setSessionCheckFailed(false);
               setIsLoading(false);
               prevAuthState.current = true;
               sessionCheckFailCount.current = 0;
@@ -140,7 +141,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         sessionStore.isAuthenticated = false;
         console.log("[SessionProvider DEBUG] 세션 스토어 초기화됨:", { userId: sessionStore.userId, isAuthenticated: sessionStore.isAuthenticated });
         setSessionChecked(true);
-        setSessionCheckFailed(false);
         setIsLoading(false);
         prevAuthState.current = false;
         return false;
@@ -195,7 +195,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         
         console.log("[SessionProvider DEBUG] 세션 스토어 업데이트됨:", { userId: sessionStore.userId, isAuthenticated: sessionStore.isAuthenticated });
         setSessionChecked(true);
-        setSessionCheckFailed(false);
         setIsLoading(false);
         prevAuthState.current = true;
         sessionCheckFailCount.current = 0;
@@ -217,7 +216,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         
         console.log("[SessionProvider DEBUG] 세션 스토어 초기화됨:", { userId: sessionStore.userId, isAuthenticated: sessionStore.isAuthenticated });
         setSessionChecked(true);
-        setSessionCheckFailed(false);
         setIsLoading(false);
         prevAuthState.current = false;
         return false;
@@ -236,7 +234,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             setIsAuthenticated(true);
             sessionStore.updateUserId(localAuthData.currentUser.id);
             sessionStore.isAuthenticated = true;
-            setSessionCheckFailed(true);
             setIsLoading(false);
             return true;
           }
@@ -246,7 +243,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
       
       // 세션 체크 실패 시 기존 상태 유지 대신 인증되지 않은 상태로 전환
-      setSessionCheckFailed(true);
       setIsLoading(false);
       
       // 세션 검증 실패 카운터 증가
@@ -271,17 +267,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       
       return prevAuthState.current ?? false;
     }
-  };
-
-  // 세션 검증 실패 카운터
-  const sessionCheckFailCount = useRef<number>(0);
+  }, [pathname, router]);
 
   // 초기 세션 체크
   useEffect(() => {
     if (!sessionChecked) {
       checkSession();
     }
-  }, [sessionChecked]);
+  }, [sessionChecked, checkSession]);
 
   // 페이지 변경 시 세션 재검사 (개선된 로직)
   useEffect(() => {
@@ -346,7 +339,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (!sessionChecked && !isLoading) {
       tryRestoreFromLocalStorage();
     }
-  }, [pathname, sessionChecked, isAuthenticated, isLoading, user]);
+  }, [pathname, sessionChecked, isAuthenticated, isLoading, user, checkSession]);
 
   // 로그인 함수
   const login = (userData: User) => {
