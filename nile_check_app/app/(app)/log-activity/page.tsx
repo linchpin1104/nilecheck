@@ -22,6 +22,7 @@ import { WaterIntake } from "@/components/ui/water-intake";
 import { ActivitySummary } from "@/components/activity-summary";
 import { FloatingLoginButton } from "@/components/ui/floating-login-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useSession } from "@/contexts/SessionProvider";
 
 export default function LogActivityPage() {
   const { 
@@ -34,13 +35,37 @@ export default function LogActivityPage() {
     syncData
   } = useAppStore();
 
-  const { currentUser: user, isAuthenticated } = useAuthStore();
+  const { currentUser: authStoreUser, isAuthenticated: authStoreAuthenticated } = useAuthStore();
+  const { user: sessionUser, isAuthenticated: sessionAuthenticated, isLoading: sessionLoading, checkSession } = useSession();
+  
+  // 두 인증 소스 중 하나라도 인증되었으면 인증된 것으로 처리
+  const isAuthenticated = authStoreAuthenticated || sessionAuthenticated;
+  // 두 사용자 소스 중 존재하는 것 사용
+  const user = sessionUser || authStoreUser;
+  
   const { toast } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
-  // 페이지 진입 시 Firebase에서 데이터 동기화
+  // 페이지 진입 시 인증 상태 확인 및 Firebase에서 데이터 동기화
   useEffect(() => {
+    // 먼저 세션 상태 확인
+    const verifyAuth = async () => {
+      try {
+        console.log('[LogActivity] 세션 상태 확인 중...');
+        await checkSession();
+        console.log('[LogActivity] 세션 확인 완료:', { 
+          sessionAuth: sessionAuthenticated, 
+          storeAuth: authStoreAuthenticated 
+        });
+      } catch (err) {
+        console.error('[LogActivity] 세션 확인 오류:', err);
+      }
+    };
+    
+    verifyAuth();
+    
+    // 인증 상태와 사용자 정보가 있으면 데이터 동기화
     if (isAuthenticated && user) {
       console.log(`[LogActivity] 사용자 데이터 동기화 시작 - 사용자 ID: ${user.id}`);
       setIsRefreshing(true);
@@ -65,14 +90,18 @@ export default function LogActivityPage() {
           variant: "destructive"
         });
       });
-    } else {
+    } else if (!sessionLoading) {
       // 로그인하지 않은 상태에서는 2초 후 로그인 프롬프트 표시
+      // 세션 로딩 중이 아닐 때만 프롬프트 표시
       const timer = setTimeout(() => {
-        setShowLoginPrompt(true);
+        if (!isAuthenticated) {
+          console.log('[LogActivity] 로그인되지 않음, 로그인 프롬프트 표시');
+          setShowLoginPrompt(true);
+        }
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [isAuthenticated, user, syncData, toast]);
+  }, [isAuthenticated, user, syncData, toast, checkSession, sessionAuthenticated, authStoreAuthenticated, sessionLoading]);
 
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedMealType, setSelectedMealType] = useState<string | null>(null);
