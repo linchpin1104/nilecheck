@@ -48,17 +48,17 @@ export async function middleware(request: NextRequest) {
         // 사용자 ID 추출 - 객체 형태로 통일
         const userPayload = verified.payload.user as Record<string, unknown>;
         userId = userPayload.id as string || '';
-        console.log(`[Middleware] Token verified: user=${userId}, auth=${isAuthenticated}`);
+        console.log(`[Middleware] 인증 성공: 사용자=${userId}`);
       }
     } catch (error) {
-      console.error('[Middleware] Invalid auth token:', error);
+      console.error('[Middleware] 인증 토큰 검증 실패:', error);
       // Don't redirect away from public paths even if token is invalid
       if (isPublicPath) {
         return NextResponse.next();
       }
     }
   } else {
-    console.log('[Middleware] No auth token found in cookies');
+    console.log('[Middleware] 쿠키에 인증 토큰이 없음');
     // Don't redirect away from public paths if no token exists
     if (isPublicPath) {
       return NextResponse.next();
@@ -67,12 +67,12 @@ export async function middleware(request: NextRequest) {
   
   // Special handling for the home page - redirect logic
   if (path === '/') {
-    // 인증된 사용자는 대시보드로, 비인증 사용자는 로그인으로
+    // 인증된 사용자는 대시보드로, 로그인 필요한 사용자는 로그인으로
     if (isAuthenticated) {
-      console.log('[Middleware] 인증된 사용자의 홈 접근, 대시보드로 리다이렉션');
+      console.log('[Middleware] 인증 확인됨, 대시보드로 리다이렉션');
       return NextResponse.redirect(new URL('/dashboard', request.url));
     } else {
-      console.log('[Middleware] 비인증 사용자의 홈 접근, 로그인으로 리다이렉션');
+      console.log('[Middleware] 인증 필요함, 로그인으로 리다이렉션');
       return NextResponse.redirect(new URL('/login', request.url));
     }
   }
@@ -94,16 +94,16 @@ export async function middleware(request: NextRequest) {
     const isFromLogin = referer.includes('/login');
     
     if (isFromLogin) {
-      console.log(`[Middleware] 로그인 페이지에서 왔지만 인증 안됨, 리다이렉트 루프 방지를 위해 그대로 진행`);
+      console.log(`[Middleware] 로그인 페이지에서 왔지만 아직 인증되지 않음, 리다이렉트 루프 방지를 위해 진행 허용`);
       return NextResponse.next();
     }
     
-    console.log(`[Middleware] 비인증 사용자의 보호 경로 접근, 로그인으로 리다이렉션: ${path}`);
+    console.log(`[Middleware] 인증 필요: ${path} 접근 시도, 로그인으로 리다이렉션`);
     return NextResponse.redirect(new URL(`/login?${params.toString()}`, request.url));
   }
   
   // Authenticated user - proceed with the request
-  console.log(`[Middleware] 인증된 사용자 요청 처리: ${path}, 사용자=${userId}`);
+  console.log(`[Middleware] 인증된 사용자(${userId}) 요청 처리: ${path}`);
   const response = NextResponse.next();
   // 인증 상태 헤더 추가
   response.headers.set('x-auth-status', 'authenticated');

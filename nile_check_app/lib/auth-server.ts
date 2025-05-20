@@ -235,19 +235,29 @@ export async function createSession(user: User): Promise<string> {
 
 // 응답에 인증 쿠키 설정
 export function setAuthCookie(response: NextResponse, token: string) {
+  // 프로덕션 환경에서 보안 설정, 개발 환경에서는 보안 완화
+  const isProduction = process.env.NODE_ENV === 'production';
+  const secure = isProduction;
+  
+  // 현재 도메인 기준 쿠키 설정
   response.cookies.set({
     name: TOKEN_COOKIE_NAME,
     value: token,
     httpOnly: true,
     path: '/',
-    secure: process.env.NODE_ENV === 'production',
+    secure: secure,
     maxAge: 60 * 60 * 24 * 7, // 7일
     sameSite: 'lax',
     domain: undefined // 도메인 지정을 제거하여 현재 도메인에만 쿠키 적용
   });
   
   // Set cookie in headers directly as well for maximum compatibility
-  const cookieHeader = `${TOKEN_COOKIE_NAME}=${token}; Path=/; Max-Age=${60 * 60 * 24 * 7}; HttpOnly; SameSite=Lax`;
+  let cookieHeader = `${TOKEN_COOKIE_NAME}=${token}; Path=/; Max-Age=${60 * 60 * 24 * 7}; HttpOnly; SameSite=Lax`;
+  
+  // Secure flag only in production
+  if (secure) {
+    cookieHeader += '; Secure';
+  }
   
   // Append to existing Set-Cookie headers if any
   const existingCookies = response.headers.get('Set-Cookie');
@@ -256,6 +266,8 @@ export function setAuthCookie(response: NextResponse, token: string) {
   } else {
     response.headers.set('Set-Cookie', cookieHeader);
   }
+  
+  console.log(`[Auth] 인증 쿠키 설정 완료: ${secure ? '보안' : '일반'} 모드, 만료: 7일`);
   
   return response;
 }

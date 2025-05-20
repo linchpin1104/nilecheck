@@ -110,14 +110,14 @@ function LoginForm() {
             currentUser: result.user
           });
           localStorage.setItem('nile-check-auth', authData);
-          console.log("로컬 스토리지에 인증 정보 저장됨:", JSON.parse(authData));
+          console.log("로컬 스토리지에 인증 정보 저장됨:", result.user?.id || "사용자 ID 없음");
           
           // 쿠키 확인
           const hasCookie = document.cookie.includes('nile-check-auth=');
-          console.log("인증 쿠키 존재 여부:", hasCookie);
+          console.log("인증 쿠키 존재 여부:", hasCookie ? "있음" : "없음");
           
           if (!hasCookie) {
-            console.warn("인증 쿠키가 설정되지 않았을 수 있음");
+            console.warn("인증 쿠키가 설정되지 않았습니다. 서버 응답 확인 필요");
           }
           
           // 쿠키가 설정되었는지 다시 확인
@@ -132,12 +132,13 @@ function LoginForm() {
               console.log("쿠키 확인됨, 리다이렉션 시작 - 대상:", result.redirectUrl || callbackUrl || "/dashboard");
               
               // 세션 스토어 상태 확인
-              console.log("세션 스토어 상태:", sessionStore);
+              console.log("세션 스토어 상태:", 
+                sessionStore.isAuthenticated ? "인증됨" : "인증안됨", 
+                sessionStore.userId || "ID 없음");
               
               if (callbackUrl) {
                 window.location.href = callbackUrl;
               } else if (result.redirectUrl) {
-                // 서버에서 지정한 리다이렉션 URL 사용
                 window.location.href = result.redirectUrl;
               } else {
                 window.location.href = "/dashboard";
@@ -149,6 +150,11 @@ function LoginForm() {
           setTimeout(() => {
             clearInterval(checkCookieInterval);
             console.log("최대 대기 시간 초과, 강제 리다이렉션");
+            
+            // 백업 방법: 로컬 스토리지 상태를 다시 확인
+            const storedAuth = localStorage.getItem('nile-check-auth');
+            const isAuthenticated = storedAuth ? true : false;
+            console.log("로컬 스토리지 인증 상태:", isAuthenticated ? "있음" : "없음");
             
             if (callbackUrl) {
               window.location.href = callbackUrl;
