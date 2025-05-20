@@ -91,7 +91,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // END: Add justLoggedIn check
 
     const now = Date.now();
-    if (now - lastSessionCheckTime.current < 2000) {
+    if (now - lastSessionCheckTime.current < 5000) {
       console.log("[SessionProvider] Debounced session check.");
       return prevAuthState.current ?? false;
     }
@@ -252,7 +252,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         console.warn(`[SessionProvider] Session check failed. Fail count: ${sessionCheckFailCount.current}`);
       }
       
-      if (sessionCheckFailCount.current >= 3 && prevAuthState.current === true) {
+      // Only log out if we've had 5 consecutive failures (increased from 3)
+      if (sessionCheckFailCount.current >= 5 && prevAuthState.current === true) {
         console.error("[SessionProvider] Persistent session check failure for previously authenticated user. Redirecting to login.");
         setIsAuthenticated(false);
         setUser(null);
@@ -347,11 +348,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
     justLoggedIn.current = true;
     console.log('[SessionProvider] justLoggedIn flag set to true.');
-    // Increased timeout slightly to 1500ms to be safer
+    // Increased timeout significantly to 10 seconds to ensure session validation succeeds after login
     justLoggedInTimeoutRef.current = setTimeout(() => {
       justLoggedIn.current = false;
-      console.log('[SessionProvider] justLoggedIn flag reset to false after 1500ms timeout.');
-    }, 1500); 
+      console.log('[SessionProvider] justLoggedIn flag reset to false after 10000ms timeout.');
+    }, 10000); // 10 second grace period
 
     setIsAuthenticated(true);
     setUser(userData);

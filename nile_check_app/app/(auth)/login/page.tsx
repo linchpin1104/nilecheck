@@ -105,27 +105,30 @@ function LoginForm() {
         console.log("로컬 스토리지에 인증 정보 저장됨:", result.user?.id || "사용자 ID 없음");
 
         // 2. Update SessionProvider context state
-        // Assuming result.user is compatible with the User type expected by contextLogin
         contextLogin(result.user); 
         
-        // 3. Redirect
+        // 3. Add a small stability delay before redirecting 
+        // This gives the browser time to process cookies and localStorage updates
+        console.log("세션 안정화를 위해 500ms 대기 중...");
+        
+        // 4. Redirect
         const redirectTo = callbackUrl || result.redirectUrl || "/log-activity";
         console.log("리다이렉션 시작 - 대상:", redirectTo);
         
-        // Small delay to help ensure state updates propagate before navigation
+        // Longer delay to help ensure state updates propagate before navigation
         setTimeout(() => {
           // router.push might switch domains in some Vercel preview environments
           // Use window.location with the current origin to keep the same domain
           const currentOrigin = window.location.origin;
           // Check if redirectTo is a relative path (starts with /)
           if (redirectTo.startsWith('/')) {
-            // Preserve current domain by using current origin
+            console.log(`페이지 이동: ${currentOrigin}${redirectTo}`);
             window.location.href = `${currentOrigin}${redirectTo}`;
           } else {
-            // If it's an absolute URL, use it as is (though this is unlikely)
+            console.log(`페이지 이동: ${redirectTo}`);
             window.location.href = redirectTo;
           }
-        }, 100); // 100ms delay might be enough
+        }, 500); // 500ms delay to ensure cookies and state are fully processed
         
         // No longer calling checkSession() here, SessionProvider on next page will handle it.
         // await checkSession(); 
