@@ -108,6 +108,9 @@ function LoginForm() {
           setTimeout(() => {
             if (callbackUrl) {
               window.location.href = callbackUrl;
+            } else if (result.redirectUrl) {
+              // 서버에서 지정한 리다이렉션 URL 사용
+              window.location.href = result.redirectUrl;
             } else {
               window.location.href = "/dashboard";
             }

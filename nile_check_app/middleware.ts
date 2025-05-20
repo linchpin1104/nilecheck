@@ -19,7 +19,7 @@ export async function middleware(request: NextRequest) {
   // Get the pathname of the request
   const path = request.nextUrl.pathname;
   
-  // Define public paths that don't require authentication
+  // Define public paths that don't require authentication (인증이 필요 없는 공개 경로)
   const isPublicPath = path === '/login' || 
                       path === '/register' || 
                       path === '/forgot-password' || 
@@ -27,19 +27,10 @@ export async function middleware(request: NextRequest) {
                       path === '/test-auth' || 
                       path === '/direct-login' ||
                       path.startsWith('/api/auth/');
-                      
-  // Define semi-protected paths (dashboard, log-activity are accessible without login but others redirect)
-  const isSemiProtectedPath = path === '/dashboard' ||
-                           path === '/log-activity';
   
-  // Define fully protected paths
-  const isProtectedPath = path === '/mypage' ||
-                          path === '/solutions' ||
-                          path.includes('/weekly-report');
-  
-  // Special handling for the home page - redirect to log-activity
+  // Special handling for the home page - redirect to login (홈페이지 리다이렉션 변경)
   if (path === '/') {
-    return NextResponse.redirect(new URL('/log-activity', request.url));
+    return NextResponse.redirect(new URL('/login', request.url));
   }
   
   // Allow access to public paths without authentication check
@@ -49,9 +40,8 @@ export async function middleware(request: NextRequest) {
   
   // Allow access to API endpoints (handled by the API routes themselves)
   if (path.startsWith('/api/')) {
-    // API 요청엔 인증 쿠키가 항상 전달되도록 함
-    const response = NextResponse.next();
-    return response;
+    // API 요청은 각 API 라우트에서 인증 처리
+    return NextResponse.next();
   }
   
   // Get authentication token from cookies
@@ -63,17 +53,15 @@ export async function middleware(request: NextRequest) {
   if (token) {
     try {
       const verified = await jwtVerify(token, JWT_SECRET);
-      isAuthenticated = !!verified.payload.user;
       
-      // 사용자 ID 추출 방법 수정
-      if (typeof verified.payload.user === 'string') {
-        userId = verified.payload.user;
-      } else if (verified.payload.user && typeof verified.payload.user === 'object') {
-        const userObj = verified.payload.user as UserPayload;
-        userId = userObj.id || '';
+      // 사용자 정보 검증 및 추출 개선
+      if (verified && verified.payload && verified.payload.user) {
+        isAuthenticated = true;
+        // 사용자 ID 추출 - 객체 형태로 통일
+        const userPayload = verified.payload.user as any;
+        userId = userPayload.id || '';
+        console.log(`[Middleware] Token verified: user=${userId}, auth=${isAuthenticated}`);
       }
-      
-      console.log(`[Middleware] Token verified: user=${userId}, auth=${isAuthenticated}`);
     } catch (error) {
       console.error('[Middleware] Invalid auth token:', error);
     }
@@ -81,18 +69,8 @@ export async function middleware(request: NextRequest) {
     console.log('[Middleware] No auth token found in cookies');
   }
   
-  // Semi-protected paths can be accessed without login
-  if (isSemiProtectedPath) {
-    const response = NextResponse.next();
-    response.headers.set('x-auth-status', isAuthenticated ? 'authenticated' : 'unauthenticated');
-    if (isAuthenticated && userId) {
-      response.headers.set('x-user-id', userId);
-    }
-    return response;
-  }
-  
-  // If not authenticated and trying to access a protected route, redirect to login
-  if (!isAuthenticated && isProtectedPath) {
+  // If not authenticated and trying to access any protected route, redirect to login
+  if (!isAuthenticated) {
     // Store the original path for redirecting back after login
     const params = new URLSearchParams();
     params.set('callbackUrl', path);
@@ -101,13 +79,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(`/login?${params.toString()}`, request.url));
   }
   
-  // Otherwise, proceed with the request
+  // Authenticated user - proceed with the request
   const response = NextResponse.next();
-  // 모든 요청에 인증 상태 헤더 추가
-  response.headers.set('x-auth-status', isAuthenticated ? 'authenticated' : 'unauthenticated');
-  if (isAuthenticated && userId) {
-    response.headers.set('x-user-id', userId);
-  }
+  // 인증 상태 헤더 추가
+  response.headers.set('x-auth-status', 'authenticated');
+  response.headers.set('x-user-id', userId);
   return response;
 }
 

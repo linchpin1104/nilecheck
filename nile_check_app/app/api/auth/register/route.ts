@@ -123,11 +123,12 @@ export async function POST(request: NextRequest) {
       // 오류가 발생해도 계속 진행
     }
     
-    // Create response with success message
+    // 회원가입 성공 응답 및 세션 쿠키 설정
     const response = NextResponse.json({
       success: true,
       message: registerResult.message || '회원가입이 완료되었습니다.',
-      user: registerResult.user
+      user: registerResult.user,
+      redirectUrl: '/dashboard' // 회원가입 성공 시 리다이렉션 경로 추가
     });
     
     // Set auth cookie

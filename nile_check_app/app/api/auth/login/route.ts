@@ -312,7 +312,8 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({
       success: true,
       message: '로그인이 완료되었습니다.',
-      user: userInfo
+      user: userInfo,
+      redirectUrl: '/dashboard'
     });
     
     // 인증 쿠키 설정

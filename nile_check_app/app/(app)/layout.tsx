@@ -2,7 +2,7 @@
 
 import React, { useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { X, LogOut, User } from "lucide-react";
 import { useSession } from "@/contexts/SessionProvider";
@@ -15,6 +15,7 @@ export default function AppLayout({
   children: React.ReactNode;
 }>) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, isAuthenticated, logout, checkSession } = useSession();
   const { isLoading } = useAuth();
@@ -32,6 +33,14 @@ export default function AppLayout({
   const handleLogout = () => {
     logout();
   };
+  
+  // 로그인 여부 체크 및 리다이렉션
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      console.log('[AppLayout] 로그인 상태가 아님. 로그인 페이지로 리다이렉션');
+      router.push('/login');
+    }
+  }, [isAuthenticated, isLoading, router]);
   
   // 로그인 후에는 localStorage에 인증 상태를 캐시해서 
   // 페이지 간 이동 시 깜빡임이나 무한 로딩을 방지
@@ -74,8 +83,17 @@ export default function AppLayout({
     };
     
     tryRestoreSession();
-  }, [isAuthenticated, isLoading, checkSession]); // 의존성 배열 추가
+  }, [isAuthenticated, isLoading, checkSession]);
   
+  // 인증 중이거나 로그인되지 않은 상태라면 로딩 표시
+  if (isLoading || !isAuthenticated) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
       <header className="bg-white border-b shadow-sm sticky top-0 z-10">
@@ -99,7 +117,7 @@ export default function AppLayout({
               </Link>
             ))}
             
-            {isAuthenticated ? (
+            {isAuthenticated && (
               <div className="flex items-center gap-4">
                 <div className="text-sm font-medium flex items-center">
                   <User className="h-4 w-4 mr-1" />
@@ -115,13 +133,6 @@ export default function AppLayout({
                   로그아웃
                 </Button>
               </div>
-            ) : (
-              <Link
-                href="/login"
-                className="text-sm font-medium text-primary hover:underline"
-              >
-                로그인
-              </Link>
             )}
           </div>
           
@@ -161,7 +172,7 @@ export default function AppLayout({
                 </Link>
               ))}
               
-              {isAuthenticated ? (
+              {isAuthenticated && (
                 <>
                   <div className="px-3 py-3 text-base font-medium text-muted-foreground flex items-center">
                     <User className="h-5 w-5 mr-2" />
@@ -178,14 +189,6 @@ export default function AppLayout({
                     로그아웃
                   </button>
                 </>
-              ) : (
-                <Link
-                  href="/login"
-                  className="block px-3 py-4 rounded-md text-base font-medium text-primary hover:underline"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  로그인
-                </Link>
               )}
             </div>
           </div>
