@@ -250,7 +250,11 @@ export default function useAuth() {
       if (data.success) {
         // Force refresh session cache after login
         await fetchSession(true);
-        return { success: true, message: data.message };
+        return { 
+          success: true, 
+          message: data.message,
+          redirectUrl: data.redirectUrl 
+        };
       } else {
         setState(prev => ({ 
           ...prev, 
@@ -325,7 +329,11 @@ export default function useAuth() {
       if (data.success) {
         // Force refresh session cache after registration
         await fetchSession(true);
-        return { success: true, message: data.message };
+        return { 
+          success: true, 
+          message: data.message,
+          redirectUrl: data.redirectUrl
+        };
       } else {
         setState(prev => ({ 
           ...prev, 
