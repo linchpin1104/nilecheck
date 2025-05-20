@@ -115,20 +115,40 @@ function LoginForm() {
         const redirectTo = callbackUrl || result.redirectUrl || "/log-activity";
         console.log("리다이렉션 시작 - 대상:", redirectTo);
         
-        // Longer delay to help ensure state updates propagate before navigation
-        setTimeout(() => {
-          // router.push might switch domains in some Vercel preview environments
-          // Use window.location with the current origin to keep the same domain
-          const currentOrigin = window.location.origin;
-          // Check if redirectTo is a relative path (starts with /)
-          if (redirectTo.startsWith('/')) {
-            console.log(`페이지 이동: ${currentOrigin}${redirectTo}`);
-            window.location.href = `${currentOrigin}${redirectTo}`;
-          } else {
-            console.log(`페이지 이동: ${redirectTo}`);
-            window.location.href = redirectTo;
-          }
-        }, 500); // 500ms delay to ensure cookies and state are fully processed
+        try {
+          // Longer delay to help ensure state updates propagate before navigation
+          setTimeout(() => {
+            // router.push might switch domains in some Vercel preview environments
+            // Use window.location with the current origin to keep the same domain
+            const currentOrigin = window.location.origin;
+            
+            // Check if redirectTo is a relative path (starts with /)
+            if (redirectTo.startsWith('/')) {
+              const fullUrl = `${currentOrigin}${redirectTo}`;
+              console.log(`페이지 강제 이동 실행: ${fullUrl}`);
+              
+              // Try multiple ways to ensure redirection works
+              try {
+                window.location.href = fullUrl;
+                
+                // If direct assignment doesn't trigger navigation, try these alternatives
+                setTimeout(() => {
+                  console.log("백업 리다이렉션 시도...");
+                  window.location.replace(fullUrl);
+                }, 200);
+              } catch (navError) {
+                console.error("리다이렉션 오류:", navError);
+                alert("페이지 이동 중 오류가 발생했습니다. 새로고침 후 다시 시도해주세요.");
+              }
+            } else {
+              console.log(`페이지 이동: ${redirectTo}`);
+              window.location.href = redirectTo;
+            }
+          }, 500); // 500ms delay to ensure cookies and state are fully processed
+        } catch (redirectError) {
+          console.error("리다이렉션 처리 중 오류:", redirectError);
+          alert("로그인은 완료되었으나 페이지 이동에 실패했습니다. 직접 /log-activity 페이지로 이동해주세요.");
+        }
         
         // No longer calling checkSession() here, SessionProvider on next page will handle it.
         // await checkSession(); 
