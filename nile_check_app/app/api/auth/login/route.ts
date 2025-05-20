@@ -313,7 +313,7 @@ export async function POST(req: NextRequest) {
       success: true,
       message: '로그인이 완료되었습니다.',
       user: userInfo,
-      redirectUrl: '/dashboard'
+      redirectUrl: '/log-activity'
     });
     
     // 인증 쿠키 설정

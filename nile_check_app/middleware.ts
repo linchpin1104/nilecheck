@@ -78,10 +78,10 @@ export async function middleware(request: NextRequest) {
   
   // Special handling for the home page - redirect logic
   if (path === '/') {
-    // 인증된 사용자는 대시보드로, 로그인 필요한 사용자는 로그인으로
+    // 인증된 사용자는 활동 기록 페이지로, 로그인 필요한 사용자는 로그인으로
     if (isAuthenticated) {
-      console.log(`[Middleware:${requestId}] 인증 확인됨, 대시보드로 리다이렉션`);
-      return NextResponse.redirect(new URL('/dashboard', request.url));
+      console.log(`[Middleware:${requestId}] 인증 확인됨, 활동 기록 페이지로 리다이렉션`);
+      return NextResponse.redirect(new URL('/log-activity', request.url));
     } else {
       console.log(`[Middleware:${requestId}] 인증 필요함, 로그인으로 리다이렉션`);
       return NextResponse.redirect(new URL('/login', request.url));

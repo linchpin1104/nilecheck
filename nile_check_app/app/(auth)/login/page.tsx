@@ -118,7 +118,7 @@ function LoginForm() {
           console.log("인증 쿠키 존재 여부:", hasCookie ? "있음" : "없음");
           
           // Next.js 라우터를 사용하여 리다이렉트 실행
-          const redirectTo = callbackUrl || result.redirectUrl || "/dashboard";
+          const redirectTo = callbackUrl || result.redirectUrl || "/log-activity";
           console.log("리다이렉션 시작 - 대상:", redirectTo);
           
           // 지연 후 라우터 리다이렉션 실행

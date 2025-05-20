@@ -394,19 +394,25 @@ export default function DashboardPage() {
       setIsRefreshing(true);
       console.log('[Dashboard] 페이지 초기화 시작, 세션 확인 중...');
       
-      // 세션 강제 갱신
-      await refreshSession();
-      
-      // 데이터 동기화
-      const userId = getUserId();
-      console.log('[Dashboard] 사용자 ID:', userId);
-      
-      if (userId) {
-        await syncData(userId);
+      try {
+        // 세션 강제 갱신
+        await refreshSession();
+        
+        // 데이터 동기화
+        const userId = getUserId();
+        console.log('[Dashboard] 사용자 ID:', userId);
+        
+        if (userId) {
+          await syncData(userId);
+        }
+        
+        console.log('[Dashboard] 페이지 초기화 완료');
+      } catch (error) {
+        console.error('[Dashboard] 초기화 중 오류 발생:', error);
+        // 오류가 발생해도 페이지 로딩은 계속 진행
+      } finally {
+        setIsRefreshing(false);
       }
-      
-      setIsRefreshing(false);
-      console.log('[Dashboard] 페이지 초기화 완료');
     };
     
     initPage();
